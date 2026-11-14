@@ -119,6 +119,13 @@ and what is known. What already works: `status.md`; checks that need a person at
   inside `zd1lv20435.fw` (HWID 0xBE).
 - **The A7**: the module program is the Zeppelin's, its MCU app (`AZ1_v2-04-77.dmb`, booting on the ZD1 board model) is
   another build of the same code; a port means its pins, DSP, amp and keys from that binary, and an A7 to try it on.
+  The telnet hook already ports to it: `stock-patch/patch.py --fw` handles A7 2.04.77 (`voTask`/`WRITEREG` unchanged,
+  the RAM data shifted −0x5c8 so `STATUS`/`ATTACH` are 0x3918/0x482c, the carve follows `memend` 0x7a08). In the
+  emulator the patched MCU reaches RUN and the hook *fires* (its STATE byte at 0x7a08 runs 0→4, writing reg
+  0x75/0x76), and telnet port 23 opens; a live interactive shell is unproven there (the emulator's usernet shell
+  path returns nothing even for the known-good ZD1L), so it awaits an A7 unit. The ~21 s `dmhBcoMgr_ercGetCneValue`
+  assert is pre-existing emulator factory-data noise (wrong PersParam + empty persistent CnE at NAND 0x60000), hit by
+  ZD1L too, and non-fatal — the hook fires through it.
 - **B&W's LAN update**: the BL2 we have rejects a whole `.fw` (`docs/module/boot-chain.md`, Web updater). The A7's and
   Lightning model's BL2 and bootloaders would show how the update goes on after the module's reboot, and what takes the
   MCU part.
