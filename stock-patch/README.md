@@ -62,3 +62,56 @@ Back to stock: the same with `blobs/mcu/zd1-2.04.05.hex`.
 
 The hook blob (`telnet_hook.bin`) is committed; `build.sh` rebuilds it from the source (`nix build .#telnet-hook`)
 and shows a diff if anything changed.
+
+## Dumping BL2 from a ZD1L / A7
+
+The point of the hook on a stock ZD1L or A7 is a shell on a unit we don't have, to read its BL2 out — the one
+build of the module's updater that differs from ours (`docs/module/boot-chain.md`, "BL2"; the Lightning model's is
+not ours, `docs/mcu/stock-firmware.md`). BL2 lives in NAND, so the running stock module app reaches it through its
+own NAND driver with `fburn`; the hook just puts that shell on the network. Reading never writes flash, so no
+interlock and no way-back concern — `fburn rd` only streams bytes out.
+
+Steps (all on the owner's own unit, with their OK):
+
+1. **Patch and flash the MCU.** `python3 -I stock-patch/patch.py --fw <model>.fw out.fw` (ZD1L `zd1lv20435.fw`, A7
+   `a7v20477.fw`), then get `out.fw`'s MCU part onto the MCU. *This last step is the open part:* what on a ZD1L or
+   A7 takes a `.fw`'s MCU `.dmb` is unconfirmed here (`docs/mcu/stock-firmware.md` lists the candidate routes — the
+   setup page's LAN update, a USB stick, the iOS app, XModem on register 0x2D). On our own ZD1 the proven route is
+   DFU of the `.hex` (`zd1 dfu write`), but the ZD1L/A7 ship their MCU app as a `.dmb`, not a `.hex`.
+
+2. **Reach the module and confirm the shell.** With the patched MCU up and the module ready, telnet port 23 is open
+   on the module's IP (the hook re-asserts reg 0x75/0x76 every ~30 s). Point the tools at it with `ZD1_IP` (or
+   `--host IP`); on a wired USB-Ethernet dongle the module answers on its link-local `169.254.1.1` (the default).
+   Check the shell answers:
+
+   ```
+   ZD1_IP=<module-ip> python3 tools/zeppelin knos "os timestamp"      # prints the uptime from sds://>
+   ```
+
+3. **Read BL2.** The BL2 partition is NAND (FlashId 0) `0xA0000`, length `0x160000` (to `0x200000`):
+
+   ```
+   ZD1_IP=<module-ip> python3 tools/zeppelin fburn rd 0 0xA0000 0x160000 bl2-<model>.bin
+   ```
+
+   `fburn rd` CAN-flushes the shared shell first, waits for "Start xmodem now!", then receives XModem-CRC
+   (128/1024-byte packets) and truncates to the requested length (`docs/module/knos.md`). The result is the
+   partition as burned: a partition header (first `0x80` bytes: `char date[16]`, modelId, swVersion, partitionId
+   = 1 for BL2, partitionLength, imageLength, …), then the boot header (`0xAAAA5555` at `+0x80`), stage 1 and
+   stage 2 — the same layout as our `blobs/module/bl2.bin` (`docs/module/boot-chain.md`, "Partition header").
+   Parse/verify it with `python3 tools/zeppelin bcd` on the carved image, and compare against `bl2.bin`
+   (build 2010-09-27) to see how far the Lightning model's updater has diverged.
+
+Notes and caveats:
+
+- The `0xA0000 / 0x160000` extent is the ZD1 module's map. The module hardware and the module app are the same
+  across all three models (the app's section 0 is byte-identical: `docs/mcu/stock-firmware.md`), so the NAND layout
+  is the same [INF] — but to be sure on an unseen unit, read the first block (`fburn rd 0 0xA0000 0x20000 hdr.bin`),
+  read `partitionLength`/`imageLength` from its header, and size the full read from that before trusting a 1.4 MB
+  dump.
+- BL1 (block 0, `0x0-0x20000`) and PersParam (`0x20000`) read the same way, but BL1 is encrypted
+  (`docs/module/boot-chain.md`) and PersParam holds per-unit data (the MAC) — keep any PersParam or user-settings
+  dump (`0x60000`) out of git.
+- *Writing* BL2 back from a running app is a different, unsolved problem (`fburn ebin`'s confirm never reads over
+  telnet: `docs/module/boot-chain.md`, "Writing NAND from the stock app") and needs `--allow-bl2`. Dumping does
+  not touch it.
