@@ -51,7 +51,9 @@ it. Whether it has any other boot source (UART, USB) with a blank NAND is unknow
 ## BL2 (0xA0000), the updater
 `blobs/module/bl2.bin` (MetaInfo + boot header + stage 1 + stage 2 at 0x60008000, mostly Thumb-2; build 2010-09-27;
 the archive.org copy has bit rot, ours verifies). The only BL2 we have, and everything below is about it: no update
-carries one, and the Lightning model's is another build (`docs/mcu/stock-firmware.md`). It reports **0x11 = 0x2300** to the MCU, brings up KnOS, Ethernet,
+carries one, and the Lightning model's is another build (`docs/mcu/stock-firmware.md`). To read a ZD1L's or A7's
+own BL2 out of its NAND, put the telnet hook on its stock MCU and `fburn rd` the `0xA0000` partition
+(`stock-patch/README.md`, "Dumping BL2"). It reports **0x11 = 0x2300** to the MCU, brings up KnOS, Ethernet,
 the SPI link and:
 - **Web updater** (GoAhead, port 80, no authentication) [HW]: `POST /goform/formPostHandler` multipart field
   `appFirmware`, then `GET /goform/formDownloadConfirmationHandler?button=Ok` (or the Expert handler with
