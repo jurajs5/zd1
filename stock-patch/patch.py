@@ -53,6 +53,15 @@ BLOB_ATTACH = 0x4DF4
 BLOB_STATE = 0x8250  # == ZD1 memend
 BLOB_LASTCOUNT = 0x8254  # == ZD1 memend + 4
 
+# The extended hook (mcurd_hook.bin) carries three more carved-RAM literals after LASTCOUNT, and reads/writes two
+# registers the stock type table does not type. Its ZD1 sentinels follow memend; relocation rebases them like the
+# other carved literals.
+MCURD_EXTRA = {0x8258: 8, 0x825C: 0xC, 0x8260: 0x10}  # blob sentinel (LASTPOLL/MBFLAGS/LASTIDX) -> memend offset
+MCURD_CARVE = 0x14  # [memend, memend+0x14): STATE, LASTCOUNT, LASTPOLL, MBFLAGS, LASTIDX (crt0 zeroes them)
+REGTABLE = 0x8000A27C  # the 256-entry SPI register type table (one F/V/X byte per id)
+MCURD_CMD, MCURD_RSP = 0x70, 0x71  # the mailbox ids the hook reads (F, 2 bytes) / writes (V)
+TYPED = (0x74, 0x76, 0x75, 0x77)  # known-typed ids used to learn the F and V byte values: 0x74/0x76 = F, 0x75/0x77 = V
+
 # Keyed on memend (the value at BSS_END_LIT): the module-comm STATUS word and attach-state byte the hook gates on.
 # voTask/WRITEREG are identical across builds, so they are not listed here.
 PROFILES = {
@@ -71,16 +80,19 @@ def unique_word(img, val, lo=0, hi=None, what="word"):
     return hits[0]
 
 
-def relocate_blob(blob, memend, profile):
-    """The committed ZD1 blob with its four build-specific literals rewritten for the target build: STATUS/ATTACH from
-    the profile, and the carved STATE/LASTCOUNT at memend / memend+4. Offsets are found up front, then written, so a
-    rewritten value can never be mistaken for another sentinel."""
+def relocate_blob(blob, memend, profile, extra=None):
+    """The committed ZD1 blob with its build-specific literals rewritten for the target build: STATUS/ATTACH from the
+    profile, and the carved STATE/LASTCOUNT (and, for the extended hook, LASTPOLL/MBFLAGS/LASTIDX) at memend + their
+    offset. Offsets are found up front, then written, so a rewritten value can never be mistaken for another
+    sentinel."""
     subs = {
         BLOB_STATUS: profile["status"],
         BLOB_ATTACH: profile["attach"],
         BLOB_STATE: memend,
         BLOB_LASTCOUNT: memend + 4,
     }
+    for sentinel, off in (extra or {}).items():
+        subs[sentinel] = memend + off
     out = bytearray(blob)
     writes = []
     for sentinel, value in subs.items():
@@ -91,9 +103,25 @@ def relocate_blob(blob, memend, profile):
     return bytes(out)
 
 
-def patch(stock, blob):
-    """The stock image with the hook at CAVE, voTask's call pointer on it and 8 RAM bytes carved for its state.
-    Returns (image, heap-literal addr, build name)."""
+def set_regtypes(img):
+    """Mark the two mailbox registers in the SPI register type table so the stock read/write path frames them: CMD as
+    F (2-byte fixed), RSP as V (variable). The F and V byte values are learned from known-typed ids (0x74/0x76 = F,
+    0x75/0x77 = V) rather than hard-coded, and the two mailbox ids must currently be neither (unused)."""
+    off = REGTABLE - BASE
+    f0, f1, v0, v1 = (img[off + i] for i in TYPED)
+    if f0 != f1 or v0 != v1 or f0 == v0:
+        raise ValueError("register type table at 0x%08x not as expected (F=%r/%r V=%r/%r)" % (REGTABLE, f0, f1, v0, v1))
+    for rid in (MCURD_CMD, MCURD_RSP):
+        if img[off + rid] in (f0, v0):
+            raise ValueError("register 0x%x is already typed (0x%02x); refusing to repurpose it" % (rid, img[off + rid]))
+    img[off + MCURD_CMD] = f0  # CMD 0x70: a 2-byte fixed read
+    img[off + MCURD_RSP] = v0  # RSP 0x71: a variable-length write
+
+
+def patch(stock, blob, mcurd=False):
+    """The stock image with the hook at CAVE, voTask's call pointer on it and the hook's RAM state carved (8 bytes for
+    the plain hook, 0x14 for the extended one). The extended hook also gets its two mailbox registers typed in the SPI
+    type table. Returns (image, heap-literal addr, build name)."""
     rd = lambda a: struct.unpack_from(">I", stock, a - BASE)[0]  # noqa: E731
     memend = rd(BSS_END_LIT)
     profile = PROFILES.get(memend)
@@ -102,10 +130,11 @@ def patch(stock, blob):
             "unrecognised build: memend (bss-end @0x%08x) = 0x%x, not in %r"
             % (BSS_END_LIT, memend, [hex(k) for k in PROFILES])
         )
-    new_memend = memend + 8  # [memend, memend+8) become the hook's STATE/LASTCOUNT (crt0 zeroes them)
+    carve = MCURD_CARVE if mcurd else 8
+    new_memend = memend + carve  # [memend, memend+carve) become the hook's carved state (crt0 zeroes them)
     votask_ptr = unique_word(stock, OLD_VOTASK, hi=CAVE, what="voTask call pointer")
     heap = unique_word(stock, memend, lo=HEAP_LIT_RANGE[0], hi=HEAP_LIT_RANGE[1], what="heap-base literal")
-    blob = relocate_blob(blob, memend, profile)
+    blob = relocate_blob(blob, memend, profile, MCURD_EXTRA if mcurd else None)
     assert CAVE - BASE + len(blob) <= 0x40000, "the hook runs past the app region"
     img = bytearray(stock)
     end = CAVE - BASE + len(blob)
@@ -115,10 +144,12 @@ def patch(stock, blob):
     img[CAVE - BASE : end] = blob
     for addr, val in ((votask_ptr, CAVE), (BSS_END_LIT, new_memend), (heap, new_memend)):
         struct.pack_into(">I", img, addr - BASE, val)
+    if mcurd:
+        set_regtypes(img)
     return img, heap, profile["name"]
 
 
-def patch_fw(fw, blob):
+def patch_fw(fw, blob, mcurd=False):
     """A B&W .fw repacked with its MCU .dmb patched (the module .bcd and the release unchanged)."""
     w, bcd, mcu, dmb = bwfw.parse(fw)
     if not dmb:
@@ -126,7 +157,7 @@ def patch_fw(fw, blob):
     name, app = dmb
     built = struct.unpack_from(">I", mcu, 4)[0]
     version = mcu[24 + bwfw.DMB_NAME : 24 + bwfw.DMB_NAME + 3]
-    img, heap, build = patch(bwfw.flash(app), blob)
+    img, heap, build = patch(bwfw.flash(app), blob, mcurd)
     new_app = bytes(img[bwfw.APP : CAVE - BASE + len(blob)])  # 0x80008000 .. hook end
     return bwfw.wrap(bcd, bwfw.make_dmb(new_app, name, version, built), w[5]), heap, name, build
 
@@ -136,20 +167,25 @@ def main():
     ap.add_argument("out", nargs="?", metavar="OUT.hex")
     ap.add_argument("--stock", default=os.path.join(HERE, "..", "blobs", "mcu", "zd1-2.04.05.hex"))
     ap.add_argument("--fw", nargs=2, metavar=("IN.fw", "OUT.fw"), help="patch a B&W .fw's MCU app (ZD1L or A7)")
+    ap.add_argument(
+        "--mcurd",
+        action="store_true",
+        help="splice the extended MCU-flash-read hook (mcurd_hook.bin) instead of the plain telnet hook",
+    )
     a = ap.parse_args()
     if not a.fw and not a.out:
         ap.error("OUT.hex is required (or use --fw IN.fw OUT.fw)")
-    blob = open(os.path.join(HERE, "telnet_hook.bin"), "rb").read()
+    blob = open(os.path.join(HERE, "mcurd_hook.bin" if a.mcurd else "telnet_hook.bin"), "rb").read()
     if a.fw:
         fw_in, fw_out = a.fw
-        out, heap, name, build = patch_fw(open(fw_in, "rb").read(), blob)
+        out, heap, name, build = patch_fw(open(fw_in, "rb").read(), blob, a.mcurd)
         open(fw_out, "wb").write(out)
         print(
             "patched %s (%s) in %s; hook %d B at 0x%08x; heap literal 0x%08x"
             % (name, build, fw_out, len(blob), CAVE, heap)
         )
         return
-    img, heap, build = patch(ihex.image(open(a.stock).read(), BASE)[1], blob)
+    img, heap, build = patch(ihex.image(open(a.stock).read(), BASE)[1], blob, a.mcurd)
     open(a.out, "w").write(ihex.dump(img, BASE))
     print(
         "patched %s; hook %d bytes at 0x%08x -> voTask 0x%08x; bss-end/heap literal 0x%08x; image end 0x%08x"
