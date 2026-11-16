@@ -50,11 +50,11 @@ it. Whether it has any other boot source (UART, USB) with a blank NAND is unknow
 
 ## BL2 (0xA0000), the updater
 `blobs/module/bl2.bin` (MetaInfo + boot header + stage 1 + stage 2 at 0x60008000, mostly Thumb-2; build 2010-09-27;
-the archive.org copy has bit rot, ours verifies). The only BL2 we have, and everything below is about it: no update
-carries one, and the Lightning model's is another build (`docs/mcu/stock-firmware.md`). To read a ZD1L's or A7's
-own BL2 out of its NAND, put the telnet hook on its stock MCU and `fburn rd` the `0xA0000` partition
-(`stock-patch/README.md`, "Dumping BL2"). It reports **0x11 = 0x2300** to the MCU, brings up KnOS, Ethernet,
-the SPI link and:
+the archive.org copy has bit rot, ours verifies) is our ZD1 unit's BL2, and everything below is about it unless
+marked otherwise. No update carries a BL2, so it is the factory's. A second BL2 is now in hand too — the Lightning
+model's, a later and larger build (`blobs/module/bl2-zd1l.bin`, "The ZD1L BL2" below); to pull one off a ZD1L or A7
+yourself, put the telnet hook on its stock MCU and `fburn rd` the `0xA0000` partition (`stock-patch/README.md`,
+"Dumping BL2"). Our BL2 reports **0x11 = 0x2300** to the MCU, brings up KnOS, Ethernet, the SPI link and:
 - **Web updater** (GoAhead, port 80, no authentication) [HW]: `POST /goform/formPostHandler` multipart field
   `appFirmware`, then `GET /goform/formDownloadConfirmationHandler?button=Ok` (or the Expert handler with
   `hwcheckoverride` / `cnedownload`), progress `bl_flash_burn_status.asp`. Client: `python3 tools/zeppelin bl2web`.
@@ -65,9 +65,11 @@ the SPI link and:
   - The status page keeps the previous update's verdict while the next burn runs: after a failed update in the
     same BL2 session the next upload shows "100 % / failed" at once while the burn succeeds and BL2 resets the board
     [HW, EMU]. `bl2web` waits out a "failed" page for the reset.
-  - It doesn't know B&W's over-the-air `.fw` (`docs/mcu/stock-firmware.md`): the upload is parsed as a `.bcd` from
-    its first byte, so the `.fw`'s 32-byte wrapper puts everything out of place and the header CRC fails ("The file
-    is an invalid BCD file"). The A7's, the Lightning model's and one packed by `bwfw.py` all end there, each the first
+  - **Our 2010 BL2** doesn't know B&W's over-the-air `.fw` (`docs/mcu/stock-firmware.md`): the upload is parsed as a
+    `.bcd` from its first byte, so the `.fw`'s 32-byte wrapper puts everything out of place and the header CRC fails
+    ("The file is an invalid BCD file"). (The ZD1L's 2012 BL2 **does** take the whole `.fw` and burns both parts —
+    "The ZD1L BL2" below; this `.fw`-rejection is our build's, not a BL2-general rule.) The A7's, the Lightning
+    model's and one packed by `bwfw.py` all end there against ours, each the first
     upload of a fresh BL2; the `.bcd` cut out of the Lightning model's gets as far as "HWID(0xbd), bcd HWID(0xbe)" [EMU
     2026-11-08: `zemu run emu/img/os/os.bcd --mcu FLASH --fwd 18080:80 --allow-panic --until 'waiting for a system'
     --host 'zd1 module bl2' --sleep 25 --host 'python3 -I tools/zeppelin/knos/bl2web.py 127.0.0.1:18080 FILE --yes'].
@@ -94,6 +96,31 @@ the SPI link and:
 - If PersParam is blank, BL2 rebuilds the defaults (BLDb, HWID 0xBD, HWVS, GUID 0, MAC0/MAC1 0, CnEA/U/S, BLDF)
   [RE, EMU].
 
+### The ZD1L BL2 (`blobs/module/bl2-zd1l.bin`)
+A real Lightning unit's BL2, contributed by a ZD1L owner: dumped over the stock-patch telnet hook (`fburn rd 0 0xA0000
+0x1A0000`), read-only [HW 2026-11-16]. Partition header: `partitionId 1`, date **`20121106102434`**, `imageLength`
+1,504,908, `partitionLength` **0x1A0000** (1,703,936; our ZD1's is 0x160000), `crc32 0x3BDC1766`; sha256
+`2e6eb04f…57dfe`. Analysis so far is strings-level static on the dump (stage 2 is Thumb-2; a Ghidra pass is pending).
+
+- **A later, larger build** — `Nov 6 2012`, BridgeCo "MR5" SDK (`e:\BSL_Customization\MR5\…`), GoAhead web "Web
+  Version 1.19.4.2"; ~1.5 MB image vs our 2010 build's ~0.8 MB.
+- **It takes the whole B&W `.fw` and flashes both parts** [HW]: the web updater burns the module `.bcd` to NAND
+  (phase 1) and pushes the MCU `.dmb` ("HostFirmware") to the MCU over XModem-over-SPI (phase 2), then resets. This is
+  how the stock-patch telnet-hook `.fw` was installed on a ZD1L. The accept handshake differs from our `bl2web`'s
+  assumptions: `POST /goform/formPostHandler` → **302 → `/1000/firmware_apply.asp`**; an **empty** apply body means
+  accepted, and the page then fires `GET /goform/formDownloadConfirmationHandler?button=++++++Ok++++++` to start the
+  burn (a non-empty body is the `_HWID`/incompatible error). `firmware_status.asp` carries `<new>`, `<host>`,
+  `<finished>`, `<success>` (module) and `<success1>` (host/MCU).
+- **It implements the firmware-update and file-transfer services our 2010 BL2 only stubbed** [RE static strings]:
+  `MemoryBlobFirmwareUpdateService(Impl)`, `FileTransferServiceImpl`, `AVRPlayerService(Impl)` (the SPI transport to
+  the MCU), `XModemOverSPI` / `RemoteRegXModemProtocol` (TX mode), and `HostFirmware` version handling
+  (`aspGetCurrentHostFirmwareVersion`). Our 2010 BL2 has the interfaces but no `…Impl` (its HCR handler logs "Can't
+  obtain RemoteRegCtrldFileTransferService"), which is why it can't flash the MCU part. The MCU-side protocol is in
+  `docs/protocol/sequences.md`, "MCU (host) firmware over SPI".
+- **USB in it is a host stack** (`USB Hub Manager`, `MTPDeviceClient`, `usb msd`/`usb mtp`, "Update from USB") — the
+  module SoC's host port for a USB stick, **not** an MCU DFU device. It says nothing about whether the AVR32's own
+  bootloader exposes USB DFU (that still needs the UC3 JTAG dump).
+
 ## NAND layout (HY27U1G8F2B, 128 MB, 2 KB pages + 64 B spare, 128 KB blocks)
 
 | Offset | Content |
@@ -102,7 +129,7 @@ the SPI link and:
 | 0x0020000 | **PersParam** (per unit) |
 | 0x0040000 | factory CnE (type 4, = `.bcd` section 1; data at +0x80) |
 | 0x0060000-0x009FFFF | user settings, two copies (device name, UUID, network, Wi-Fi incl. passphrase) |
-| 0x00A0000 (0x160000) | BL2 (type 1) |
+| 0x00A0000 (0x160000) | BL2 (type 1); `partitionLength` is the build's — 0x160000 on our ZD1, 0x1A0000 on the ZD1L |
 | 0x0240000 (0xA00000) | app (type 2), single slot |
 | 0x0C40000 (0x400000) | resources (type 7: web UI, UI strings) |
 | rest | erased |

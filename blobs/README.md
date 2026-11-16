@@ -13,6 +13,7 @@ and the pieces of Nokia's Linux our module OS runs on, kept here so that a check
 | `module/bl1.plain` | 34464 | `fba3b527…f7eb7654b` | BL1 decrypted, as it runs at SRAM 0x400000 | SRAM capture at stage-2 entry (`re/netmodule/bl1/README.md`), 2026-10-19 |
 | `module/bl1.run` | 35336 | `58f30c4d…f2e9b92c9` | BL1, re-runnable: the stage-2-entry SRAM capture (`re/netmodule/bl1/sram_at_stage2_entry.bin`) cut at BL1's end 0x8A08, the scatter-load call at 0x400010 replaced by `b 0x400688` (the C entry; its data is already unpacked, in the post-boot state). What `zemu run --nand --real-bl1` executes | made from that capture (`re/netmodule/bl1/README.md`), 2026-10-23 |
 | `module/bl2.bin` | 798720 | `fefd9a49…30181c` | module BL2 partition from NAND 0xA0000 (MetaInfo header + BL2, CRC OK) | `fburn rd` of our unit |
+| `module/bl2-zd1l.bin` | 1703936 | `2e6eb04f…57dfe` | the Lightning model's BL2 partition from NAND 0xA0000 (build 2012-11-06, BridgeCo MR5; `docs/module/boot-chain.md`, "The ZD1L BL2") | `fburn rd 0 0xA0000 0x1A0000` of a ZD1L owner's unit over the stock-patch telnet hook, contributed via GitHub issue #1, 2026-11-16 |
 | `module/app_DMP.bcd` | 6847488 | `568bc824…f8b11b8dd` | stock module image (app + factory CnE + resources), JukeBlox 3.8.0.9112 | B&W `zd1v20405.zip` / Recovery Utility |
 
 ## `module/nokia-hd1/`: Nokia's Linux for the module's chip

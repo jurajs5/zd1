@@ -77,8 +77,9 @@ counts down 35 s and opens `http://IP/`, expecting BL2's web updater there. The 
 | A7 2.04.77 | the ZD1 board's ADC2 (0x100) | AZ1 | as 2.04.05 on variant 2 |
 
 The ZD1's bootloader (0514, the one we have) then waits in USB DFU with the module off, so with it the LAN update
-ends there. The ZD1L's and A7's bootloaders, which no `.fw` carries, must start the module into BL2 instead
-[INF]; the A7's 2.00.28 was `a7v20028-bsl.fw` (not recovered). Each app writes its identity's version into the
+ends there. The ZD1L's and A7's bootloaders, which no `.fw` carries, start the module into BL2 instead, and BL2
+flashes the MCU part back over SPI ("How the MCU part is delivered" below, and the key-hold report) [INF for the
+bootloader; HW for the BL2 side]; the A7's 2.00.28 was `a7v20028-bsl.fw` (not recovered). Each app writes its identity's version into the
 EEPROM record (+6: 0x0005 for ZD1, 0x0035 for ZD1L, 0x0077 for the A7) and takes a record with another version as
 invalid (its defaults). The A7 app boots on the ZD1 board model ("PSS AZ1", DSP firmware v01.00, finds its DSP, codec
 and EEPROM, reaches RUN); the ZD1L app looks like 2.04.05 throughout (the -4 differences changed nothing seen).
@@ -88,24 +89,34 @@ seen here): ON/OFF held at power-up gives a white LED, nothing on USB (three tri
 mode), and the module on wired Ethernet only (DHCP), serving GoAhead's `/bl_index.asp`, "Zeppelin Air Setup - Firmware
 Update", © 2012. `/scripts/info.asp` gives `firmware_version="105.9112"` and `host_vers="2.04.35"`;
 `/1000/firmware_status.asp` the same and the progress; `scripts/firmware.js` says "This firmware file is incorrect for
-your speaker hardware" on a reply containing `_HWID`. A plain power cycle afterwards boots stock.
+your speaker hardware" on a reply containing `_HWID`. A plain power cycle afterwards boots stock. A second owner has
+since driven this web updater to flash a `.fw` and dump the BL2 behind it (`blobs/module/bl2-zd1l.bin`, build
+2012-11-06 — the `firmware_version="105.9112"` here is the installed *module app*, not BL2) [HW 2026-11-16].
 
-**Its BL2 is not ours** [INF, strong]. Ours is built 2010-09-27 and serves none of those three files (404, as does
-`/index.asp`) [EMU 2026-11-08]; it rejects every B&W `.fw` whole (`docs/module/boot-chain.md`), so it can't be what
-those files were made for. A `.bcd` has three sections (app, CnE, resources), so no update brings a BL2: the Lightning
-model's is the factory's. Whatever `docs/module/boot-chain.md` says about BL2 was read from ours. Nothing is known of
-theirs but the report above: its HWID, CRC and version checks, whether it takes `.bcd`, `.fw` or both, what happens to
-a `.fw`'s MCU part.
+**Its BL2 is not ours, and we now have it** [HW 2026-11-16]. A ZD1L owner dumped their BL2 over the stock-patch
+telnet hook (`blobs/module/bl2-zd1l.bin`; `docs/module/boot-chain.md`, "The ZD1L BL2"): a later, larger build
+(2012-11-06, BridgeCo MR5, GoAhead "Web Version 1.19.4.2") — so the factory's, as expected (a `.bcd` has three
+sections app/CnE/resources, so no update carries a BL2). Ours (2010-09-27) serves none of those `.asp` files (404)
+[EMU 2026-11-08] and rejects a whole `.fw`; the ZD1L's serves them and **takes the whole `.fw`, flashing both the
+module `.bcd` and the MCU `.dmb`** — which answers "what happens to a `.fw`'s MCU part" below.
 
-**Is USB DFU there at all?** Open. For: the ZD1L app restores the same ISP word (`0x929E0870`: PA08, the ON/OFF key;
-`.dmb` +0x9352 and +0x9386, as in 2.04.05's) [RE]; on variant 2 the app sets ISP_FORCE, whose only known use is forcing
-DFU, and a GPLP flag (0x1000000) that it clears unread at boot and that the 0514 bootloader never reads, so a bootloader
-somewhere does [INF]; and the USB mux is software-driven and differs by variant (`re/mcu/work/usb_ipod_notes.txt`:
-request 3 is variant 1 only, PA19 high likewise), so a running DFU could be routed away from the rear port [INF].
-Against: the MCU part ships as a `.dmb` with its own header where the ZD1's is a `.hex`, which suggests something other
-than a DFU tool reads it, and a 16 KB bootloader that receives the app from the module may have had USB taken out [INF].
-The key-hold can't set ISP_FORCE or the GPLP flag, so 0x27 is a second, untested way in; ISP_FORCE survives power cycles
-and on a bootloader without DFU may have no way off but a finished update, so that test wants JTAG ready.
+**How the MCU part is delivered — answered.** The ZD1L's BL2 flashes it over SPI, not USB: BL2 stages the `.dmb` in
+RAM (`MemoryBlobFirmwareUpdateService`) and transmits it to the MCU with `XModemOverSPI` (XModem-1K over registers
+0x2C/0x2D, HCR 0x2520 GET_FILE), the mirror of our module-image relay (`docs/protocol/sequences.md`, "MCU (host)
+firmware over SPI"). The MCU-side receiver is the stock app's `voBcoMgrXmodemTask` (dead code in the app; live in the
+ZD1L's MCU bootloader). Proven on hardware: a ZD1L flashed the stock-patch telnet-hook `.dmb` through BL2's web
+updater. So the `.dmb` header (vs the ZD1's `.hex`) is for BL2/the bootloader's XModem consumer, not a DFU tool.
+
+**Is USB DFU on the MCU there at all?** Still open, and no longer needed for the LAN update (that goes over SPI,
+above). For: the ZD1L app restores the same ISP word (`0x929E0870`: PA08, the ON/OFF key; `.dmb` +0x9352 and +0x9386,
+as in 2.04.05's) [RE]; on variant 2 the app sets ISP_FORCE, whose only known use is forcing DFU, and a GPLP flag
+(0x1000000) that it clears unread at boot and that the 0514 bootloader never reads, so a bootloader somewhere does
+[INF]; and the USB mux is software-driven and differs by variant (`re/mcu/work/usb_ipod_notes.txt`: request 3 is
+variant 1 only, PA19 high likewise), so a running DFU could be routed away from the rear port [INF]. Against: the
+owner saw nothing on USB in key-hold, and a 16 KB bootloader that receives the app from the module over SPI may have
+had USB taken out [INF]. The key-hold can't set ISP_FORCE or the GPLP flag, so 0x27 is a second, untested way in;
+ISP_FORCE survives power cycles and on a bootloader without DFU may have no way off but a finished update, so that
+test wants JTAG ready. The read-only UC3 JTAG dump (GitHub issue #1) would settle it.
 
 **Our firmware as a `.dmb`**: the stock app region starts with one branch (`e0 8f 20 00`, to 0x80008000) and zeros, and
 a `.dmb` only holds what follows. `nix build .#mcu-dmb` links our firmware at 0x80008000 for that (72 KB; up to
@@ -120,7 +131,10 @@ stock ZD1L without replacing its firmware, e.g. to read BL2 out (`fburn rd`, the
 2.04.05 hook (HW-proven 2026-10-16) ports to 2.04.35 untouched: every address it uses is byte-identical, only sbrk's
 heap-base literal moves (0x8002ae28 -> 0x8002ae24, the -4 shift), which `patch()` locates. A repacked `.fw` gave the
 KnOS shell on telnet (`sds://>`) in the emulator, a stock module image beside the patched MCU [EMU 2026-11-08, AUX
-boot]. Same delivery question as any MCU change here: unproven that a ZD1L flashes a `.fw`'s MCU part.
+boot]. **Delivery is proven on a real ZD1L** [HW 2026-11-16]: an owner uploaded the repacked `.fw` to BL2's web
+updater (key-hold → BL2 on Ethernet), BL2 burned both parts, and after the reset telnet answered on port 23 — then
+the shell dumped the unit's BL2 (`blobs/module/bl2-zd1l.bin`). So BL2's SPI XModem is the ZD1L's MCU-flash route;
+USB DFU is not needed for it.
 
 Other ways a `.fw` might get in, from the module app's strings [RE, untried]: its own online check (`GetLatestFwUrl`,
 `FirmwareIndexPage` = BridgeCo's dead `bridgeco-jukeblox.net/download/index.xml`), a USB stick

@@ -74,10 +74,14 @@ interlock and no way-back concern — `fburn rd` only streams bytes out.
 Steps (all on the owner's own unit, with their OK):
 
 1. **Patch and flash the MCU.** `python3 -I stock-patch/patch.py --fw <model>.fw out.fw` (ZD1L `zd1lv20435.fw`, A7
-   `a7v20477.fw`), then get `out.fw`'s MCU part onto the MCU. *This last step is the open part:* what on a ZD1L or
-   A7 takes a `.fw`'s MCU `.dmb` is unconfirmed here (`docs/mcu/stock-firmware.md` lists the candidate routes — the
-   setup page's LAN update, a USB stick, the iOS app, XModem on register 0x2D). On our own ZD1 the proven route is
-   DFU of the `.hex` (`zd1 dfu write`), but the ZD1L/A7 ship their MCU app as a `.dmb`, not a `.hex`.
+   `a7v20477.fw`), then upload `out.fw` **whole** to the module's **BL2 web updater**: key-hold ON/OFF while plugging
+   mains in → the module comes up on wired Ethernet (DHCP) serving the firmware-update page → upload `out.fw`. BL2
+   burns both parts (module `.bcd` to NAND, the patched MCU `.dmb` to the MCU over SPI) and resets. Proven on a real
+   ZD1L [HW 2026-11-16] (`docs/module/boot-chain.md`, "The ZD1L BL2"). Note the accept handshake: the POST answers
+   302 → `/1000/firmware_apply.asp`; an **empty** body means accepted and the page then GETs
+   `/goform/formDownloadConfirmationHandler?button=++++++Ok++++++` to start the burn (our `bl2web` client predates
+   this; drive it by hand or extend it). On our own ZD1, by contrast, the MCU route is DFU of the `.hex`
+   (`zd1 dfu write`); the ZD1L/A7 ship the MCU app as a `.dmb`, which is what BL2's SPI path consumes.
 
 2. **Reach the module and confirm the shell.** With the patched MCU up and the module ready, telnet port 23 is open
    on the module's IP (the hook re-asserts reg 0x75/0x76 every ~30 s). Point the tools at it with `ZD1_IP` (or
@@ -88,10 +92,12 @@ Steps (all on the owner's own unit, with their OK):
    ZD1_IP=<module-ip> python3 tools/zeppelin knos "os timestamp"      # prints the uptime from sds://>
    ```
 
-3. **Read BL2.** The BL2 partition is NAND (FlashId 0) `0xA0000`, length `0x160000` (to `0x200000`):
+3. **Read BL2.** The BL2 partition starts at NAND (FlashId 0) `0xA0000`; its length is the build's — the ZD1L's is
+   **`0x1A0000`** (confirmed on hardware), our ZD1's `0x160000`. Read the header first and size the dump from its
+   `partitionLength` (next caveat), e.g. for a ZD1L:
 
    ```
-   ZD1_IP=<module-ip> python3 tools/zeppelin fburn rd 0 0xA0000 0x160000 bl2-<model>.bin
+   ZD1_IP=<module-ip> python3 tools/zeppelin fburn rd 0 0xA0000 0x1A0000 bl2-<model>.bin
    ```
 
    `fburn rd` CAN-flushes the shared shell first, waits for "Start xmodem now!", then receives XModem-CRC
@@ -104,11 +110,10 @@ Steps (all on the owner's own unit, with their OK):
 
 Notes and caveats:
 
-- The `0xA0000 / 0x160000` extent is the ZD1 module's map. The module hardware and the module app are the same
-  across all three models (the app's section 0 is byte-identical: `docs/mcu/stock-firmware.md`), so the NAND layout
-  is the same [INF] — but to be sure on an unseen unit, read the first block (`fburn rd 0 0xA0000 0x20000 hdr.bin`),
-  read `partitionLength`/`imageLength` from its header, and size the full read from that before trusting a 1.4 MB
-  dump.
+- The partition **base** `0xA0000` holds across models, but the **length does not**: the ZD1L's BL2 is `0x1A0000`,
+  our ZD1's `0x160000` — so don't assume one. Read the first block (`fburn rd 0 0xA0000 0x20000 hdr.bin`), take
+  `partitionLength`/`imageLength` from its header (`char date[16]` at 0, then the u32s; `docs/module/boot-chain.md`,
+  "Partition header"), and size the full read from that.
 - BL1 (block 0, `0x0-0x20000`) and PersParam (`0x20000`) read the same way, but BL1 is encrypted
   (`docs/module/boot-chain.md`) and PersParam holds per-unit data (the MAC) — keep any PersParam or user-settings
   dump (`0x60000`) out of git.

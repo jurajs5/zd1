@@ -95,8 +95,9 @@ and what is known. What already works: `status.md`; checks that need a person at
   `zd1 rollback` on the unit as one flow (`install --no-bcd` has run there); the Pages workflow's first run on GitHub;
   the page's three views (triage, installer, updater and configurator) with backups kept in the browser; interlocks
   (`docs/web.md`, Interlocks).
-- **Rewriting BL2** from a running image: the stock app's `fburn ebin 0 0xA0000 0x160000` + XModem over the module
-  console (`zd1 console`; its y/n confirm never sees an answer over telnet). Untested.
+- **Rewriting BL2** from a running image: the stock app's `fburn ebin 0 0xA0000 <partitionLength>` (0x160000 on our
+  ZD1, 0x1A0000 on the ZD1L) + XModem over the module console (`zd1 console`; its y/n confirm never sees an answer
+  over telnet). Untested.
 - **The MAC back without the stock app**: BL2's serial menu "8 program MAC0" on the module console. Untested.
 - **A NAND programmer image**: the spare-area layout and ECC are known (`module/boot-chain.md`); needs the chip's
   bad-block list and whatever the boot ROM expects of block 0.
@@ -107,12 +108,15 @@ and what is known. What already works: `status.md`; checks that need a person at
 ## Other models
 - **The Zeppelin Air with Lightning** (`docs/mcu/stock-firmware.md`): our MCU firmware ignores the board variant, and
   BL2's SPI XModem (the relay, `zd1 xmodem`) takes our image whatever HWID the module has (`docs/module/boot-chain.md`)
-  [EMU]. Reported (issue #1): the key-hold gives BL2's web updater on Ethernet and nothing on USB, so `zd1 install` can't
-  run as it is and there's no DFU backup to take first. Open, in order: what its BL2 is (the paths ours serves, its
-  banner on the UART, a NAND read); its bootloader (a JTAG dump: on its board TMS is TP88, the rest of TP88-91 is
-  inferred); whether a `.fw`'s MCU part gets flashed, and on which way in. If it does, our firmware on both boards
-  goes that way (`.#mcu-dmb`, `bwfw.py --pack`) and needs no stock-MCU mode. The way back is the stock module image
-  inside `zd1lv20435.fw` (HWID 0xBE).
+  [EMU]. Much is now answered on hardware (issue #1): its BL2 is in hand (`blobs/module/bl2-zd1l.bin`, 2012 MR5 build),
+  its web updater **takes the whole `.fw` and flashes both the module `.bcd` and the MCU `.dmb`** — the MCU part over
+  SPI XModem (`docs/protocol/sequences.md`, "MCU (host) firmware over SPI") — and a ZD1L owner drove it end-to-end to
+  install the telnet hook [HW 2026-11-16]. So **our firmware on a ZD1L can go in the same way** (`.#mcu-dmb` +
+  `bwfw.py --pack` + BL2's web updater, no USB DFU, no stock-MCU mode), subject to BL2's HWID (expert override) and
+  host-version checks. The way back is the stock `zd1lv20435.fw` (HWID 0xBE). Still open: the ZD1L **MCU bootloader**
+  (who initiates the SPI DFU, and whether USB DFU exists at all) — a read-only UC3 JTAG dump (TMS is TP88, the rest of
+  TP88-91 inferred) or an MCU-flash-over-SPI read would show it; packing and installing *our* `.dmb` on a real ZD1L
+  end-to-end; and an owner pursuing a module-OS-on-stock-MCU route (issue #1).
 - **The A7**: the module program is the Zeppelin's, its MCU app (`AZ1_v2-04-77.dmb`, booting on the ZD1 board model) is
   another build of the same code; a port means its pins, DSP, amp and keys from that binary, and an A7 to try it on.
   The telnet hook already ports to it: `stock-patch/patch.py --fw` handles A7 2.04.77 (`voTask`/`WRITEREG` unchanged,
@@ -122,9 +126,10 @@ and what is known. What already works: `status.md`; checks that need a person at
   path returns nothing even for the known-good ZD1L), so it awaits an A7 unit. The ~21 s `dmhBcoMgr_ercGetCneValue`
   assert is pre-existing emulator factory-data noise (wrong PersParam + empty persistent CnE at NAND 0x60000), hit by
   ZD1L too, and non-fatal — the hook fires through it.
-- **B&W's LAN update**: the BL2 we have rejects a whole `.fw` (`docs/module/boot-chain.md`, Web updater). The A7's and
-  Lightning model's BL2 and bootloaders would show how the update goes on after the module's reboot, and what takes the
-  MCU part.
+- **B&W's LAN update**: answered for the ZD1L — its 2012 BL2 takes the whole `.fw` and flashes both parts, the MCU
+  `.dmb` over SPI XModem (`docs/module/boot-chain.md`, "The ZD1L BL2"). Our 2010 BL2 can't (it rejects a whole `.fw`
+  and lacks the host-firmware services). The **A7's** BL2 and bootloader are still unseen — likely the same MR5-era
+  path, but unconfirmed.
 
 ## Emulator
 Places where the emulator is known to differ from the unit; fix the model when one gets in the way.
