@@ -1,0 +1,28 @@
+name: build-mcurd-hook
+
+# Builds the extended MCU hook (.#mcurd-hook) on an x86_64 Linux runner, where the x86_64 AVR32 toolchain actually
+# runs. Temporary CI for iterating the draft; remove before the PR leaves draft.
+on:
+  push:
+    branches: [mcurd-hook]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@v16
+      - name: Build the hook
+        run: nix build .#mcurd-hook -L
+      - name: Report
+        run: |
+          cp result/mcurd_hook.bin mcurd_hook.bin
+          chmod 644 mcurd_hook.bin
+          ls -la mcurd_hook.bin
+          sha256sum mcurd_hook.bin
+          echo "size: $(wc -c < mcurd_hook.bin) bytes"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mcurd_hook
+          path: mcurd_hook.bin
