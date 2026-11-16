@@ -58,6 +58,8 @@
 	.set	RSP_REG,   0x71
 	.set	BLOCK,     64
 	.set	FBASE,     0x80000000
+	.set	IDLE_FLAG, 0x00000078	/* dmhBcoMgr access-path idle flag: 1 = idle, no SPI transaction in flight */
+	.set	LOCK_FLAG, 0x00000079	/* register-access lock byte: 0 = unlocked (boLockRegisterAccess @0x8000b7a0) */
 
 telnet_hook:
 	/* --- gate: only act when the module is ready AND attached --- */
@@ -168,6 +170,23 @@ telnet_hook:
 	lddpc	r10, .Lmbperiod
 	cp.w	r9, r10
 	brlo	.Lret
+
+	/* --- only read while the SPI access path is quiescent ---
+	 * ercReadRegister does a synchronous read, but the register tasks (ticked from voTask, cooperative) keep a read
+	 * transaction in flight ACROSS ticks (header, 5 ms, receive). Reading now would corrupt an in-flight transfer,
+	 * which is what trips the module version check -> stock system error 7 [EMU 2026-11-16]. So read only when the
+	 * access path is idle (0x78 == 1) and not locked (0x79 == 0) -- the "only while idle" the HW precedent used
+	 * (docs/protocol/spi-registers.md §6). LASTPOLL advances only once we commit to a read, so an idle window is
+	 * retried every tick, not once per MBPERIOD. */
+	lddpc	r8, .Lidle
+	ld.ub	r9, r8[0]
+	cp.w	r9, 1
+	brne	.Lret			/* access task busy: a transaction is in flight */
+	lddpc	r8, .Llock
+	ld.ub	r9, r8[0]
+	cp.w	r9, 0
+	brne	.Lret			/* register access locked by another path */
+
 	mfsr	r9, 0x108
 	lddpc	r8, .Llastpoll
 	st.w	r8[0], r9		/* LASTPOLL = COUNT */
@@ -272,6 +291,8 @@ telnet_hook:
 .Lperiod:	.long	PERIOD
 .Lmbperiod:	.long	MBPERIOD
 .Lfbase:	.long	FBASE
+.Lidle:		.long	IDLE_FLAG
+.Llock:		.long	LOCK_FLAG
 .Lport:		.long	.Lportdata
 .Lmode:		.long	.Lmodedata
 
