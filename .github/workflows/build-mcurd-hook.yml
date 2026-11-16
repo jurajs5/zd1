@@ -26,3 +26,26 @@ jobs:
         with:
           name: mcurd_hook
           path: mcurd_hook.bin
+
+  disasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@v16
+      - name: Disassemble the lock + read SM (for the hook rework)
+        run: |
+          nix build .#test-unit -o tu
+          nix shell .#avr32-toolchain -c bash -c '
+            F=tu/mcu_flash.bin
+            for r in 8000b780:8000b940 8000c2d4:8000c470 8000c6ec:8000c820 8000b860:8000b912; do
+              lo=${r%:*}; hi=${r#*:}
+              echo "===== 0x$lo .. 0x$hi ====="
+              avr32-objdump -D -b binary -m avr32 --adjust-vma=0x80000000 \
+                --start-address=0x$lo --stop-address=0x$hi "$F"
+            done
+          ' > disasm.txt
+          wc -l disasm.txt; head -20 disasm.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: disasm
+          path: disasm.txt
