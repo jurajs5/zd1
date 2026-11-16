@@ -216,6 +216,7 @@ let
       emulator = true;
     };
     telnet-hook = self.callPackage ./mcu/stock-patch.nix { };
+    mcurd-hook = self.callPackage ./mcu/mcurd-hook.nix { };
   });
   # The firmware with its identification stamped in (mcu/stamp.py): on the host, so a new commit doesn't need the Linux
   # builder unless the firmware's sources changed.
@@ -262,6 +263,7 @@ in
       mcu-dmb-raw
       mcu-emu-dmb-raw
       telnet-hook
+      mcurd-hook
       avr32-toolchain
       ;
     mcu = stampMcu mcu.mcu-raw;
