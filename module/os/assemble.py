@@ -193,7 +193,7 @@ def wrap(payload_bin, out):
     """The payload wrapped like the stock app (stock preloader, CnE, resources) for the relay and BL2. The system
     isn't in it: `zd1 update` puts it into a slot (docs/module/updater.md)."""
     stock = open(os.path.join(REPO, "blobs/module/app_DMP.bcd"), "rb").read()
-    open(out, "wb").write(mkbcd.build(stock, open(payload_bin, "rb").read()))
+    open(out, "wb").write(mkbcd.build(payload=open(payload_bin, "rb").read(), **mkbcd.template(stock)))
     log("  %s %d B" % (os.path.basename(out), os.path.getsize(out)))
 
 

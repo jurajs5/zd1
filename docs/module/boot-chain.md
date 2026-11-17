@@ -186,11 +186,13 @@ App stage-2 checksum: 16-bit LE words, a = b = 0xFFFF, folded every 360 words, r
 | 0x18 / 0x1C | model id (0x69) / software version (0x2398 = build 9112) |
 | 0x20 | low 16 bits = HWID: 0xBD (also BL2's PersParam default) in B&W's Zeppelin Air, A5 and Z2 images; 0xBE in the Zeppelin Air with Lightning's (2.01.04, 2.04.35); 0xA7 in the A7's |
 | 0x28 / 0x2C | header version (2 = 0xB0-byte header) / **header CRC32** (zlib, over the header with this field zeroed) |
-| 0x30 + 0x20·i | sections {file offset, NAND address, size, CRC32, partition size}: 0 app (→ 0x240000), 1 factory CnE, 2 resources (→ 0xC40000; 0x90 + 4·i = the sizes of its containers, 8 words, 3 used) |
+| 0x30 + 0x20·i | sections {file offset, NAND address, size, CRC32, partition size}: 0 app (→ 0x240000), 1 factory CnE, 2 resources (→ 0xC40000; 0x90 + 4·i = the sizes of its containers, 8 words, 3 used; size 0 = an empty partition, the ZD1L's BL2 takes it [EMU]) |
 | 0xB0 | "DMP 3.x" |
 
-No signature. Tools: `python3 tools/zeppelin bcd` (parse, check, extract), `mkbcd` (wrap a custom stage 2 with the
-stock preloader, CnE and resources, recompute everything, pad sections to 4).
+No signature. Tools: `python3 tools/zeppelin bcd` (parse, check, extract), `mkbcd` (a `.bcd` from its parts: B&W's
+preloader `blobs/module/preloader.bin` behind a boot header written here, a custom stage 2, a model's CnE and resource
+containers, HWID and date; every header and checksum computed, sections padded to 4; rebuilds B&W's ZD1, ZD1L and A7
+images byte for byte from their own parts, `mkbcd --selftest`).
 
 ## PersParam (0x20000)
 0x10-byte block header, "PersParam", then records `{mark (08080808 live, 0 superseded), record length, data length, 0,
