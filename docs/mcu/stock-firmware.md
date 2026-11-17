@@ -116,7 +116,10 @@ variant 1 only, PA19 high likewise), so a running DFU could be routed away from 
 owner saw nothing on USB in key-hold, and a 16 KB bootloader that receives the app from the module over SPI may have
 had USB taken out [INF]. The key-hold can't set ISP_FORCE or the GPLP flag, so 0x27 is a second, untested way in;
 ISP_FORCE survives power cycles and on a bootloader without DFU may have no way off but a finished update, so that
-test wants JTAG ready. The read-only UC3 JTAG dump (GitHub issue #1) would settle it.
+test wants JTAG ready. Reading the bootloader would settle it: with our firmware running on a ZD1L (`zd1l.fw`) and its
+USB reaching the MCU, `zd1 peek 0x80000000 0x8000 --out boot.bin` reads it and the stage at 0x80004000, which a
+`.dmb` leaves in place (`zd1 peek 0x80800000 512 --out user.bin`: the user page) [EMU 2026-11-17: the dump matched
+the emulated flash]; else a read-only UC3 JTAG dump (GitHub issue #1).
 
 **Our firmware as a `.dmb`**: the stock app region starts with one branch (`e0 8f 20 00`, to 0x80008000) and zeros, and
 a `.dmb` only holds what follows. `nix build .#mcu-dmb` links our firmware at 0x80008000 for that (72 KB; up to

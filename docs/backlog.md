@@ -114,8 +114,9 @@ and what is known. What already works: `status.md`; checks that need a person at
   install the telnet hook [HW 2026-11-16]. So **our firmware on a ZD1L can go in the same way**: `nix build .#zd1l-fw`
   (`docs/mcu/stock-firmware.md`, "Our firmware as a `.dmb`") from key-hold through BL2's expert confirm
   (`docs/module/boot-chain.md`, "The ZD1L BL2"), no USB DFU, no stock-MCU mode (`bl2web IP zd1l.fw --yes`). The way back is the stock `blobs/zd1l/zd1lv20435.fw` (HWID 0xBE). Still open: the ZD1L **MCU bootloader**
-  (who initiates the SPI DFU, and whether USB DFU exists at all) — a read-only UC3 JTAG dump (TMS is TP88, the rest of
-  TP88-91 inferred) or an MCU-flash-over-SPI read would show it; `zd1l.fw` installed on a real ZD1L, and what of our MCU firmware works
+  (who initiates the SPI DFU, and whether USB DFU exists at all) — once our firmware runs there and reaches USB, `zd1 peek 0x80000000 0x8000 --out
+  boot.bin` reads it and the stage at 0x80004000 (a `.dmb` leaves both in place), else a read-only UC3 JTAG dump (TMS
+  is TP88, the rest of TP88-91 inferred); `zd1l.fw` installed on a real ZD1L, and what of our MCU firmware works
   on its board (variant 2: the Lightning dock and the USB mux are the ZD1's code); and an owner pursuing a module-OS-on-stock-MCU route (issue #1).
 - **The A7**: the module program is the Zeppelin's, its MCU app (`AZ1_v2-04-77.dmb`, booting on the ZD1 board model) is
   another build of the same code; a port means its pins, DSP, amp and keys from that binary, and an A7 to try it on.
