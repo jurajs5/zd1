@@ -77,11 +77,10 @@ Steps (all on the owner's own unit, with their OK):
    `a7v20477.fw`), then upload `out.fw` **whole** to the module's **BL2 web updater**: key-hold ON/OFF while plugging
    mains in → the module comes up on wired Ethernet (DHCP) serving the firmware-update page → upload `out.fw`. BL2
    burns both parts (module `.bcd` to NAND, the patched MCU `.dmb` to the MCU over SPI) and resets. Proven on a real
-   ZD1L [HW 2026-11-16] (`docs/module/boot-chain.md`, "The ZD1L BL2"). Note the accept handshake: the POST answers
-   302 → `/1000/firmware_apply.asp`; an **empty** body means accepted and the page then GETs
-   `/goform/formDownloadConfirmationHandler?button=++++++Ok++++++` to start the burn (our `bl2web` client predates
-   this; drive it by hand or extend it). On our own ZD1, by contrast, the MCU route is DFU of the `.hex`
-   (`zd1 dfu write`); the ZD1L/A7 ship the MCU app as a `.dmb`, which is what BL2's SPI path consumes.
+   ZD1L [HW 2026-11-16] (`docs/module/boot-chain.md`, "The ZD1L BL2"). `python3 tools/zeppelin bl2web IP out.fw
+   --yes` runs this BL2's upload sequence (the apply page, then the expert confirm). On our own ZD1, by contrast, the
+   MCU route is DFU of the `.hex` (`zd1 dfu write`); the ZD1L/A7 ship the MCU app as a `.dmb`, which is what BL2's
+   SPI path consumes.
 
 2. **Reach the module and confirm the shell.** With the patched MCU up and the module ready, telnet port 23 is open
    on the module's IP (the hook re-asserts reg 0x75/0x76 every ~30 s). Point the tools at it with `ZD1_IP` (or

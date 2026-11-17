@@ -106,8 +106,8 @@ A real Lightning unit's BL2, contributed by a ZD1L owner: dumped over the stock-
   Version 1.19.4.2"; ~1.5 MB image vs our 2010 build's ~0.8 MB.
 - **It takes the whole B&W `.fw` and flashes both parts** [HW]: the web updater pushes the MCU `.dmb` ("HostFirmware") to
   the MCU over XModem-over-SPI and burns the module `.bcd` to NAND (the MCU's first [EMU], below), then resets. This is
-  how the stock-patch telnet-hook `.fw` was installed on a ZD1L. The accept handshake differs from our `bl2web`'s
-  assumptions: `POST /goform/formPostHandler` → **302 → `/1000/firmware_apply.asp`**; an **empty** apply body means
+  how the stock-patch telnet-hook `.fw` was installed on a ZD1L. The accept handshake differs from our 2010 BL2's:
+  `POST /goform/formPostHandler` → **302 → `/1000/firmware_apply.asp`**; an **empty** apply body means
   accepted, and the page then fires `GET /goform/formDownloadConfirmationHandler?button=++++++Ok++++++` to start the
   burn (a non-empty body is the `_HWID`/incompatible error). `firmware_status.asp` carries `<new>`, `<host>`,
   `<finished>`, `<success>` (module) and `<success1>` (host/MCU).
@@ -116,6 +116,8 @@ A real Lightning unit's BL2, contributed by a ZD1L owner: dumped over the stock-
   `FileStatusHandlerPageUndefined`; the ~7 MB size cap and the "persistent lock" reported earlier were this), the POST
   (302 to `/1000/firmware_apply.asp`), **`GET /1000/firmware_apply.asp`**, `GET /1000/firmware_expert.asp`, `GET
   /goform/formExpertDownloadConfirmationHandler?button=++++++Ok++++++`, then `firmware_status.asp` until `finished`.
+  `python3 tools/zeppelin bl2web IP FILE.fw --yes` does all of it (it tells this BL2 from ours by
+  `firmware_status.asp`); against this BL2 in the emulator it burned a `.fw` without an MCU part [EMU 2026-11-17].
   - **The apply page arms the confirm.** Its one line, `aspSetFirmwareUploadConfirmationHandler` (0x600c6910) with
     `"button"`, the Ok value, `"firmware_status.asp"` and `"bl_index.asp"`, copies the button's name and value and the
     two pages the confirm goes on to into RAM (0x6040a304), with no check of the image; until it runs they hold their defaults

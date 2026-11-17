@@ -133,7 +133,8 @@ factory CnE from `blobs/`, no resources (an empty section: the ZD1L's BL2 writes
 doesn't read it), HWID 0xBE, our build date. The MCU part is `.#mcu-dmb` under B&W's name and
 version (`ZD1L_v2-04-35.dmb`, 2.04.35, release 20435), as the telnet-hook `.fw` the ZD1L's BL2 burned. It goes in
 through BL2's web updater from key-hold, with the expert confirm (`docs/module/boot-chain.md`, "The ZD1L BL2": BL2
-sends the MCU part first and needs the MCU's bootloader for it); the way back is key-hold → BL2 → `zd1lv20435.fw`. In the emulator, the same file with `.#mcu-emu-dmb`, cut by `bwfw.py` and booted on
+sends the MCU part first and needs the MCU's bootloader for it): `python3 tools/zeppelin bl2web IP zd1l.fw --yes`; the
+way back is the same with `zd1lv20435.fw`. In the emulator, the same file with `.#mcu-emu-dmb`, cut by `bwfw.py` and booted on
 board variant 2, runs: no slot, every service up, the MCU link ready, 13.5 MB of 28.4 MB free with the receivers
 running (the root holds ~10 MB of RAM) [EMU 2026-11-17: `zemu run DIR/module.bcd --nand --mcu DIR/mcu_flash.bin
 --renode 'zd1:board Adc "2:0x300"'`]. Not yet on a ZD1L.
