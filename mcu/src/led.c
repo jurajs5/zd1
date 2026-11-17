@@ -12,6 +12,16 @@
 #define VOL_MS   1200 /* volume feedback */
 #define ACK_MS   900  /* a pick acknowledged: two pulses */
 
+/* the LED show: while a source plays, its own colour for SHOW_INTRO_MS after a switch, then a slow colour-wheel whose
+ * brightness follows the music (source_vis_level, the DSP input peak) and pulses on the beat */
+#define SHOW_INTRO_MS 5000 /* the input's own colour this long after a switch, before the show starts */
+#define SHOW_HUE_MS   12   /* ms per hue step; 1536 steps make a full wheel (~18.4 s a turn) */
+#define SHOW_E_LO     3400 /* input level (Q8 log2 of the 5.23 peak, ~-60 dBFS) that maps to the dim base... */
+#define SHOW_E_HI     5600 /* ...and the level (~-4 dBFS) that maps to full brightness */
+#define SHOW_MIN      40   /* a base glow, so the show never goes fully dark */
+#define SHOW_MAX      255
+#define SHOW_BEAT     80 /* how hard a transient above the running average pulses the brightness */
+
 /* CUPD with CMR.CPD = 0 -> new duty at the next period boundary. Async: ASF's sync variant busy-waits for the
  * period end (~8.5 ms per channel), which would stall the cooperative main loop. */
 static void duty(unsigned ch, uint16_t v) {
@@ -99,6 +109,105 @@ static uint8_t breathe(uint32_t now, uint32_t per, uint8_t lo, uint8_t hi) {
     uint32_t t = now % per, x = (t < per / 2 ? t : per - t) * 512 / per; /* 0..256 */
     return (uint8_t)(lo + (hi - lo) * ease(x) / 256);
 }
+/* ---- the show (beat-reactive colour wheel) ---- */
+/* log2 of a level in Q8 (8 fractional bits): 0 for 0, up to ~5888 for full scale (0x800000 = 1.0 in 5.23) */
+static uint32_t ilog2q8(uint32_t x) {
+    if (!x)
+        return 0;
+    int b = 31;
+    while (!(x & 0x80000000u)) {
+        x <<= 1;
+        b--;
+    }
+    return ((uint32_t)b << 8) | ((x >> 23) & 0xFF);
+}
+/* a full saturated colour wheel, h in 0..1535 (R -> Y -> G -> C -> B -> M -> R) */
+static rgb8_t hue_wheel(uint16_t h) {
+    uint8_t seg = (uint8_t)(h >> 8), t = (uint8_t)(h & 0xFF);
+    rgb8_t c;
+    switch (seg) {
+    case 0:
+        c.r = 255;
+        c.g = t;
+        c.b = 0;
+        break;
+    case 1:
+        c.r = (uint8_t)(255 - t);
+        c.g = 255;
+        c.b = 0;
+        break;
+    case 2:
+        c.r = 0;
+        c.g = 255;
+        c.b = t;
+        break;
+    case 3:
+        c.r = 0;
+        c.g = (uint8_t)(255 - t);
+        c.b = 255;
+        break;
+    case 4:
+        c.r = t;
+        c.g = 0;
+        c.b = 255;
+        break;
+    default:
+        c.r = 255;
+        c.g = 0;
+        c.b = (uint8_t)(255 - t);
+        break;
+    }
+    return c;
+}
+static uint8_t show_src = 0xFF, show_player = 0xFF;
+static uint32_t show_t0, show_env; /* intro start; the running-average log level, for beat detection */
+static bool show_active;
+static uint16_t show_hue; /* 0..1535, recomputed each frame */
+static uint8_t show_lvl;  /* brightness 0..255, recomputed each frame */
+
+static void show_tick(uint32_t now) {
+    show_hue = (uint16_t)((now / SHOW_HUE_MS) % 1536);
+    int32_t lv = source_vis_level();
+    uint32_t e = ilog2q8(lv < 0 ? 0 : (uint32_t)lv);
+    int32_t b; /* the loudness glow */
+    if (e <= SHOW_E_LO)
+        b = SHOW_MIN;
+    else if (e >= SHOW_E_HI)
+        b = SHOW_MAX;
+    else
+        b = SHOW_MIN + (int32_t)(e - SHOW_E_LO) * (SHOW_MAX - SHOW_MIN) / (SHOW_E_HI - SHOW_E_LO);
+    int32_t env = (int32_t)show_env; /* the beat: how far this sample rises above its slow average */
+    env += ((int32_t)e - env) >> 5;  /* ~320 ms follower */
+    if (env < 0)
+        env = 0;
+    show_env = (uint32_t)env;
+    int32_t d = (int32_t)e - env;
+    if (d > 0)
+        b += d * SHOW_BEAT >> 8;
+    show_lvl = (uint8_t)(b < 0 ? 0 : b > 255 ? 255 : b);
+}
+/* each frame: run the 5 s intro -> show timer off the current look, and tick the show while it is on */
+static void show_update(uint32_t now) {
+    bool run_playing = look.kind == LOOK_RUN && look.act == ACT_PLAYING;
+    if (run_playing) {
+        if (look.source != show_src || look.player != show_player) {
+            show_src = look.source; /* a new input: show its own colour first */
+            show_player = look.player;
+            show_t0 = now;
+            show_active = false;
+        }
+        if (!show_active && tick_after(now, show_t0 + SHOW_INTRO_MS)) {
+            show_active = true; /* glow_scene changes -> glow_frame crossfades into the show */
+            show_env = 0;
+        }
+    } else {
+        show_src = show_player = 0xFF;
+        show_active = false;
+    }
+    if (show_active)
+        show_tick(now);
+}
+
 static rgb8_t color_of(uint8_t source, uint8_t player) {
     if (source == SRC_WIFI && player < N_PLAYERS)
         return player_color[player];
@@ -107,6 +216,8 @@ static rgb8_t color_of(uint8_t source, uint8_t player) {
 static rgb8_t glow_color(void) {
     if (ack_on)
         return color_of(ack_src, ack_player);
+    if (show_active)
+        return hue_wheel(show_hue);
     if (look.kind != LOOK_RUN)
         return RED;
     if (look.source == SRC_WIFI && (look.act == ACT_NO_NET || look.act == ACT_STARTING))
@@ -130,6 +241,8 @@ static uint8_t glow_level(uint32_t now) {
     }
     if (vol_on)
         return vol_limit ? ((now / 90) & 1 ? 40 : 255) : vol_level;
+    if (show_active)
+        return show_lvl;
     switch (look.act) {
     case ACT_PLAYING:
         return 255;
@@ -150,7 +263,7 @@ static uint8_t glow_level(uint32_t now) {
 }
 static uint16_t glow_scene(void) {
     return (uint16_t)(look.kind | look.act << 2 | look.source << 5 | look.player << 8 | vol_on << 11 | vol_limit << 12 |
-                      ack_on << 13);
+                      ack_on << 13 | show_active << 14);
 }
 static void fade_start(uint32_t now, uint32_t ms) {
     for (int i = 0; i < 3; i++)
@@ -210,6 +323,7 @@ void led_poll(uint32_t now) {
     if (!tick_after(now, next_frame))
         return;
     next_frame = now + FRAME_MS;
+    show_update(now);
     if (overlay) { /* 50 ms on, 50 ms off, like stock's flashes */
         rgb8_t c = flash_color[overlay_c];
         uint32_t on = (now / 50) & 1 ? 0 : 1;

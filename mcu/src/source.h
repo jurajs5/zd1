@@ -31,7 +31,8 @@ bool source_amp_allowed(void);         /* the amp interlock (allowed from boot u
 void source_amp_allow(bool allow, bool keep); /* deny switches the amp off at once; keep: also from every boot */
 bool source_amp_asleep(void);                 /* RUN, the amp off because the source has been silent */
 uint32_t source_silent_ms(uint32_t now);      /* RUN: how long the source has been silent (0: it plays) */
-int32_t source_level(void); /* the DSP's input meter, last sample, while it is read (AUX, the stock app's Wi-Fi) */
+int32_t source_level(void);     /* the DSP's input meter, last sample, while it is read (AUX, the stock app's Wi-Fi) */
+int32_t source_vis_level(void); /* the DSP input peak for the LED show: any playing source, before the volume (5.23) */
 uint32_t source_level_floor(void);  /* ... and the source's learnt noise floor (sound: 12 dB over it, -80..-40 dBFS) */
 void source_bass_set(uint8_t bass); /* 0..BASS_MAX, kept in the EEPROM */
 void source_key(uint8_t key);       /* key_event_t (inputs.h): as if pressed (the host link's Key) */
