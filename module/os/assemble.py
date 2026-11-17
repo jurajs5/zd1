@@ -228,25 +228,25 @@ def zd1l_template(fw_path):
     return t
 
 
-def lightning(cfg, parts, out, fw_path, base_nand):
+def lightning(cfg, parts, out, fw_path, base_nand, version, built):
     """os-zd1l.bcd: the Zeppelin Air with Lightning, B&W's MCU firmware kept (docs/stock-mcu.md). Its MCU bootloader
-    takes no image over USB, so the module is installed through BL2's web updater alone, and the system comes along:
-    the initramfs is the rescue plus system.cpio.gz and its stamp (system.id). On a stock MCU the stub gets no slot
-    answer and boots the rescue; with zd1.mcu=stock the rescue installs the system into slot A when slot A holds
-    another one, then switches its root to slot A (zd1-init, stock.rs). The initramfs goes in uncompressed: the system
-    image is gzip already."""
-    log("rescue-zd1l")
-    root = os.path.join(out, ".rescue-zd1l")
-    make_rescue(cfg, parts, root)
-    system = os.path.join(out, "system.cpio.gz")
-    shutil.copyfile(system, os.path.join(root, "system.cpio.gz"))
-    stamp = "zd1l-" + hashlib.sha256(open(system, "rb").read()).hexdigest()[:16]
-    open(os.path.join(root, "system.id"), "w").write(stamp + "\n")
-    cpio(root, out, "rescue-zd1l")
+    takes no image over USB, and BL2's web updater (the only way in) holds the whole .bcd in a ~7 MB RAM buffer, so the
+    system can't be staged into a NAND slot the usual way and a rescue+system .bcd overflows the buffer. Instead the
+    release system IS the boot initramfs, run straight from the app partition each boot (as the dev boot does): the
+    .bcd is just stub + kernel + system.cpio.gz (~6.6 MB, under the cap). No slot query and no rescue -- the stub still
+    sets status BOOTING (the stock MCU keeps polling) and boots the initramfs directly; the system's zd1-linkd says
+    READY once Linux is up. zd1.mcu=stock turns on the stock-MCU runtime wholly from the command line (zd1-linkd's
+    stock dialect, zd1-audio's 44.1 kHz, the status page's Wi-Fi form -- zd1-init system.rs `status`), with no
+    dependency on the slot path. The system runs read-only from RAM; settings persist on the data partition. (The
+    trade-off vs a slot install: the system isn't kept in NAND, so every flash re-sends it -- fine on the web updater.)"""
+    log("system-zd1l (direct-boot initramfs)")
+    root = os.path.join(out, ".system-zd1l")
+    make_system(cfg, parts, root, version, built)
+    os.symlink("sbin/init", os.path.join(root, "init"))  # the kernel runs /init from an initramfs
+    cpio(root, out, "system-zd1l", slot=True)
     shutil.rmtree(root)
-    log("  system stamp %s" % stamp)
     p = os.path.join(out, "payload_zd1l.bin")
-    payload(cfg, parts, os.path.join(out, "rescue-zd1l.cpio"), p, ZD1L_CMDLINE, initrd_at=ZD1L_INITRD_AT)
+    payload(cfg, parts, os.path.join(out, "system-zd1l.cpio.gz"), p, ZD1L_CMDLINE, dev=True)
     image = os.path.join(out, "os-zd1l.bcd")
     open(image, "wb").write(mkbcd.build(zd1l_template(fw_path), open(p, "rb").read()))
     log("  os-zd1l.bcd %d B" % os.path.getsize(image))
@@ -254,7 +254,7 @@ def lightning(cfg, parts, out, fw_path, base_nand):
     install(base_nand, image, os.path.join(out, "nand_os_zd1l.bin"))
     # the emulator's: the same with zd1-linkd logging every MCU request (zd1.linktrace), never for a unit
     pt = os.path.join(out, "payload_zd1l_trace.bin")
-    payload(cfg, parts, os.path.join(out, "rescue-zd1l.cpio"), pt, ZD1L_CMDLINE + " zd1.linktrace", initrd_at=ZD1L_INITRD_AT)
+    payload(cfg, parts, os.path.join(out, "system-zd1l.cpio.gz"), pt, ZD1L_CMDLINE + " zd1.linktrace", dev=True)
     open(os.path.join(out, "os-zd1l-trace.bcd"), "wb").write(mkbcd.build(zd1l_template(fw_path), open(pt, "rb").read()))
 
 
@@ -325,7 +325,7 @@ def assemble(cfg, parts, out, version, built, base_nand, zd1l_fw=None):
         wrap(p, os.path.join(out, "os%s.bcd" % suffix))
     install(base_nand, os.path.join(out, "os.bcd"), os.path.join(out, "nand_os.bin"))
     if zd1l_fw:
-        lightning(cfg, parts, out, zd1l_fw, base_nand)
+        lightning(cfg, parts, out, zd1l_fw, base_nand, version, built)
     # the emulator's dev boot: the debug system as one plain initramfs loaded straight into SDRAM, its init as /init
     log("initramfs-dev")
     os.symlink("sbin/init", os.path.join(sysroot, "init"))
