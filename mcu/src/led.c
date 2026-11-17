@@ -12,15 +12,15 @@
 #define VOL_MS   1200 /* volume feedback */
 #define ACK_MS   900  /* a pick acknowledged: two pulses */
 
-/* the LED show: while a source plays, its own colour for SHOW_INTRO_MS after a switch, then a slow colour-wheel whose
- * brightness follows the music (source_vis_level, the DSP input peak) and pulses on the beat */
+/* the LED show: while a source plays, its own colour for SHOW_INTRO_MS after a switch, then a fresh RANDOM colour every
+ * SHOW_COLOR_MS, its brightness tracking the music (source_vis_level, the DSP input peak) with a wide range and a low
+ * floor so each beat is a distinct flash that falls back to near-dark between beats */
 #define SHOW_INTRO_MS 5000 /* the input's own colour this long after a switch, before the show starts */
-#define SHOW_HUE_MS   12   /* ms per hue step; 1536 steps make a full wheel (~18.4 s a turn) */
-#define SHOW_E_LO     3400 /* input level (Q8 log2 of the 5.23 peak, ~-60 dBFS) that maps to the dim base... */
-#define SHOW_E_HI     5600 /* ...and the level (~-4 dBFS) that maps to full brightness */
-#define SHOW_MIN      40   /* a base glow, so the show never goes fully dark */
+#define SHOW_COLOR_MS 1000 /* a new random colour this often (a hard jump, not a gradual rotation) */
+#define SHOW_E_LO     4200 /* input level (Q8 log2 of the 5.23 peak, ~-40 dBFS) at/below which the LED is near-dark... */
+#define SHOW_E_HI     5700 /* ...and the level (~-2 dBFS) that maps to full brightness (a ~38 dB window = strong beats) */
+#define SHOW_MIN      15   /* the floor between beats: nearly off, so pulses stand apart */
 #define SHOW_MAX      255
-#define SHOW_BEAT     80 /* how hard a transient above the running average pulses the brightness */
 
 /* CUPD with CMR.CPD = 0 -> new duty at the next period boundary. Async: ASF's sync variant busy-waits for the
  * period end (~8.5 ms per channel), which would stall the cooperative main loop. */
@@ -160,31 +160,34 @@ static rgb8_t hue_wheel(uint16_t h) {
     return c;
 }
 static uint8_t show_src = 0xFF, show_player = 0xFF;
-static uint32_t show_t0, show_env; /* intro start; the running-average log level, for beat detection */
+static uint32_t show_t0, show_hue_t; /* intro start; when the current random colour was picked */
 static bool show_active;
-static uint16_t show_hue; /* 0..1535, recomputed each frame */
+static uint16_t show_hue; /* 0..1535, the current colour */
 static uint8_t show_lvl;  /* brightness 0..255, recomputed each frame */
 
+/* a fresh colour at least ~70 deg away from the last, so each 1 s change is clearly different */
+static uint16_t next_hue(uint16_t old) {
+    static uint32_t rng = 0x2545F491u;
+    rng = rng * 1664525u + 1013904223u;                  /* an LCG */
+    uint16_t step = (uint16_t)(300 + (rng >> 13) % 936); /* 300..1235 of 1536 */
+    return (uint16_t)((old + step) % 1536);
+}
+
 static void show_tick(uint32_t now) {
-    show_hue = (uint16_t)((now / SHOW_HUE_MS) % 1536);
+    if (tick_after(now, show_hue_t + SHOW_COLOR_MS)) {
+        show_hue_t = now;
+        show_hue = next_hue(show_hue); /* a new random colour, a hard jump */
+    }
     int32_t lv = source_vis_level();
     uint32_t e = ilog2q8(lv < 0 ? 0 : (uint32_t)lv);
-    int32_t b; /* the loudness glow */
+    int32_t b; /* brightness straight off the peak meter: wide range, low floor -> beats stand apart */
     if (e <= SHOW_E_LO)
         b = SHOW_MIN;
     else if (e >= SHOW_E_HI)
         b = SHOW_MAX;
     else
         b = SHOW_MIN + (int32_t)(e - SHOW_E_LO) * (SHOW_MAX - SHOW_MIN) / (SHOW_E_HI - SHOW_E_LO);
-    int32_t env = (int32_t)show_env; /* the beat: how far this sample rises above its slow average */
-    env += ((int32_t)e - env) >> 5;  /* ~320 ms follower */
-    if (env < 0)
-        env = 0;
-    show_env = (uint32_t)env;
-    int32_t d = (int32_t)e - env;
-    if (d > 0)
-        b += d * SHOW_BEAT >> 8;
-    show_lvl = (uint8_t)(b < 0 ? 0 : b > 255 ? 255 : b);
+    show_lvl = (uint8_t)b;
 }
 /* each frame: run the 5 s intro -> show timer off the current look, and tick the show while it is on */
 static void show_update(uint32_t now) {
@@ -197,8 +200,9 @@ static void show_update(uint32_t now) {
             show_active = false;
         }
         if (!show_active && tick_after(now, show_t0 + SHOW_INTRO_MS)) {
-            show_active = true; /* glow_scene changes -> glow_frame crossfades into the show */
-            show_env = 0;
+            show_active = true;            /* glow_scene changes -> glow_frame crossfades into the show */
+            show_hue = next_hue(show_hue); /* first random colour right away */
+            show_hue_t = now;
         }
     } else {
         show_src = show_player = 0xFF;
