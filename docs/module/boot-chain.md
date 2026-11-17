@@ -104,13 +104,37 @@ A real Lightning unit's BL2, contributed by a ZD1L owner: dumped over the stock-
 
 - **A later, larger build** — `Nov 6 2012`, BridgeCo "MR5" SDK (`e:\BSL_Customization\MR5\…`), GoAhead web "Web
   Version 1.19.4.2"; ~1.5 MB image vs our 2010 build's ~0.8 MB.
-- **It takes the whole B&W `.fw` and flashes both parts** [HW]: the web updater burns the module `.bcd` to NAND
-  (phase 1) and pushes the MCU `.dmb` ("HostFirmware") to the MCU over XModem-over-SPI (phase 2), then resets. This is
+- **It takes the whole B&W `.fw` and flashes both parts** [HW]: the web updater pushes the MCU `.dmb` ("HostFirmware") to
+  the MCU over XModem-over-SPI and burns the module `.bcd` to NAND (the MCU's first [EMU], below), then resets. This is
   how the stock-patch telnet-hook `.fw` was installed on a ZD1L. The accept handshake differs from our `bl2web`'s
   assumptions: `POST /goform/formPostHandler` → **302 → `/1000/firmware_apply.asp`**; an **empty** apply body means
   accepted, and the page then fires `GET /goform/formDownloadConfirmationHandler?button=++++++Ok++++++` to start the
   burn (a non-empty body is the `_HWID`/incompatible error). `firmware_status.asp` carries `<new>`, `<host>`,
   `<finished>`, `<success>` (module) and `<success1>` (host/MCU).
+- **A modified image burns only through the expert confirm** [HW, a ZD1L owner, issue #1; their Ghidra pass]:
+  `checkBCDAndFlashStatus` (0x60063de4) checks the header CRC, the HWID against PersParam and each section's CRC, and
+  flags an image that isn't B&W's (`user_mod`) without refusing it, so the POST is accepted; the plain
+  `formDownloadConfirmationHandler` then refuses a `user_mod` image (302 to `/1000/FWUCHandlerPage`, nothing burned).
+  What burns it: `GET /1000/firmware_prepare.asp` (arms the upload; without it the POST may 302 to
+  `FileStatusHandlerPageUndefined`), the POST, `GET /1000/firmware_expert.asp`, `GET
+  /goform/formExpertDownloadConfirmationHandler?button=++++++Ok++++++`, then `firmware_status.asp` until `finished`.
+  The ~7 MB size cap and the "persistent lock" reported earlier were the missing arm.
+- **In the emulator** [EMU 2026-11-17]: it runs from a test NAND with it at 0xA0000, PersParam's HWID 0xBE and
+  `os-zd1l.bcd` installed, entered from our OS (`zemu run IMAGE --nand --nand-image NAND --mcu FLASH --renode 'zd1:board
+  Adc "2:0x300"' --fwd 18080:80 --host 'zd1 module bl2'`, then the expert recipe above against 127.0.0.1:18080):
+  - The upload goes into a 15 MB RAM buffer (`FwUpdater::OpenData`: 15,188,608 B, wanting 14 MB of heap free).
+  - **The MCU part goes first**: after the confirm, `TransferImagetoHost` XModems the `.dmb` to the MCU, and when that
+    fails ("xmodemTransmit failed", our MCU app is no receiver: on the unit the MCU's bootloader is, after a key-hold),
+    the update ends there ("Couldnot Update Finish Returned False") with nothing written. So a `.fw` only installs
+    from key-hold, not from BL2 entered with `zd1 module bl2`. A `.fw` without an MCU part (wrapper length 0) skips it.
+  - **The resources are optional.** An empty resources section (its partition in the table, length 0) is taken
+    (`processResourceData() Success`) and written as an empty partition (MetaInfo with length 0, the data erased;
+    byte-identical to `bcd.py install`); a section left out of the table (an all-zero entry) leaves the old
+    resources in place. Both burned the app, and both NANDs booted our OS afterwards.
+  - **It writes the factory CnE**: section 1 goes to NAND 0x40000 (our 2010 BL2's model in `bcd.py install` only
+    erases the user settings), so a `.bcd` for a ZD1L carries the ZD1L's CnE.
+  - After the burn it sets status 0x2500 (`firmware_status.asp`: `finished`, `success`, `success1` YES) and waits;
+    with our MCU app nothing resets the module (1500 s). On the unit, from key-hold, the board reset itself [HW].
 - **It implements the firmware-update and file-transfer services our 2010 BL2 only stubbed** [RE static strings]:
   `MemoryBlobFirmwareUpdateService(Impl)`, `FileTransferServiceImpl`, `AVRPlayerService(Impl)` (the SPI transport to
   the MCU), `XModemOverSPI` / `RemoteRegXModemProtocol` (TX mode), and `HostFirmware` version handling
