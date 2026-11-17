@@ -24,6 +24,10 @@ static uint32_t source_amp_idle_ms(void) { return (uint32_t)g_settings.amp_idle_
 #define CYCLE_COMMIT_MS 1000 /* stock timer 0x1a: switch 1 s after the last short ON/OFF press */
 /* ours */
 #define AMP_HOLD_MS 30000 /* standby: the supply stays on (muted) this long, so a quick wake doesn't cycle it */
+/* switching away from a live, sounding amp: ramp the DSP volume DOWN to silence first, THEN hard-mute + switch the
+ * input, so the change itself doesn't click (a hard mute of a live signal, either order, steps the output -> a pop) */
+#define SWITCH_FADE_STEPS   10
+#define SWITCH_FADE_STEP_MS 6
 /* a source switch mutes the amp first; keep it muted this long before the unmute, so the input-mux glitch and the
  * DAC's soft-mute ramp die out while silent (no speaker pop) */
 #define SWITCH_SETTLE_MS 80
@@ -72,6 +76,11 @@ static bool auto_entered;  /* ... switched to by itself (a stream), not by hand 
 static bool next_auto;     /* the next enter_run is source_auto_select's */
 static bool quiet_wifi;    /* the next enter_run onto Wi-Fi doesn't resume the sender (a pick, not a play) */
 static bool next_asleep;   /* the next enter_run leaves the amp asleep (the source is silent: sound wakes it) */
+static source_t pend_src = SRC_NONE; /* a switch waiting out the pre-switch volume fade */
+static bool fading;        /* ramping the volume down before the switch; the deferred enter_run skips the fade */
+static unsigned fade_from; /* the volume index the fade started from */
+static uint8_t fade_i;     /* fade step, 0..SWITCH_FADE_STEPS */
+static uint32_t fade_t;    /* the next fade step is due at */
 static uint32_t t_user;    /* the last source change by hand (keys, remote, plugs, the host link) */
 static uint32_t t_active;  /* the current source last had sound */
 static int32_t level = -1; /* the DSP's input meter, last sample (-1: not read) */
@@ -245,6 +254,8 @@ static void announce(void) {
     log_putc('\n');
 }
 static void enter_standby(void) {
+    fading = false; /* drop any pending pre-switch fade */
+    pend_src = SRC_NONE;
     amp_mute(); /* output stage off first: no pop as the volume drops to mute (see enter_run) */
     if (cur == SRC_WIFI)
         wifi_leave();     /* stock: DE + E1 */
@@ -264,8 +275,21 @@ static void enter_run(source_t s, uint32_t now) {
         enter_standby();
         return;
     }
-    amp_mute(); /* kill the output stage FIRST: the volume drop, DAC mute and input-mux switch below must not reach a
-                 * live amp, or the speaker pops on every source change [HW 2026-11] */
+    /* switching away from a source that is sounding through a live amp: ramp the DSP volume down to silence first (the
+     * amp stays unmuted so it plays the smooth fade), then finish the switch in silence, so it doesn't click [HW
+     * 2026-11]. source_poll runs the ramp and calls back here when it is done */
+    if (!fading && s != cur && state == SYS_RUN && phase != RUN_ASLEEP && amp_is_unmuted()) {
+        fading = true;
+        pend_src = s;
+        fade_from = applied;
+        fade_i = 0;
+        fade_t = now;
+        return;
+    }
+    fading = false;
+    pend_src = SRC_NONE;
+    amp_mute(); /* kill the output stage: the volume drop, DAC mute and input-mux switch below must not reach a live
+                 * amp (by now the signal has faded to silence, so this is a clean mute) [HW 2026-11] */
     if (cur == SRC_WIFI && s != SRC_WIFI && state == SYS_RUN)
         wifi_leave(); /* stock: DE + E1 */
     bool to_wifi = s == SRC_WIFI && !(cur == SRC_WIFI && state == SYS_RUN);
@@ -739,6 +763,17 @@ static void show(void) {
 }
 
 void source_poll(uint32_t now) {
+    if (fading && pend_src != SRC_NONE && tick_after(now, fade_t)) { /* the pre-switch volume ramp-down */
+        fade_t = now + SWITCH_FADE_STEP_MS;
+        if (fade_i < SWITCH_FADE_STEPS) {
+            fade_i++;
+            set_vol(fade_from + (DSP_VOL_MUTE - fade_from) * fade_i / SWITCH_FADE_STEPS);
+        } else { /* faded to silence: finish the switch now (fading is still set, so enter_run won't fade again) */
+            source_t s = pend_src;
+            pend_src = SRC_NONE;
+            enter_run(s, now);
+        }
+    }
     const inputs_t *in = inputs();
     key_event_t k;
     while ((k = inputs_key()) != KEY_NONE) {
