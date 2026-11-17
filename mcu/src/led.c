@@ -12,15 +12,24 @@
 #define VOL_MS   1200 /* volume feedback */
 #define ACK_MS   900  /* a pick acknowledged: two pulses */
 
-/* the LED show: while a source plays, its own colour for SHOW_INTRO_MS after a switch, then a fresh RANDOM colour every
- * SHOW_COLOR_MS, its brightness tracking the music (source_vis_level, the DSP input peak) with a wide range and a low
- * floor so each beat is a distinct flash that falls back to near-dark between beats */
+/* the LED show: while a source plays, show its own colour for SHOW_INTRO_MS after a switch, then run a beat-reactive
+ * show off the DSP input peak (source_vis_level). The brightness is auto-ranged to the music's own recent window (so
+ * it shows real dynamics whatever the absolute level) with a fast peak-hold so beats stay separate; the colour jumps
+ * to a fresh random one ON EACH BEAT (not a fixed clock). */
 #define SHOW_INTRO_MS 5000 /* the input's own colour this long after a switch, before the show starts */
-#define SHOW_COLOR_MS 1000 /* a new random colour this often (a hard jump, not a gradual rotation) */
-#define SHOW_E_LO     4200 /* input level (Q8 log2 of the 5.23 peak, ~-40 dBFS) at/below which the LED is near-dark... */
-#define SHOW_E_HI     5700 /* ...and the level (~-2 dBFS) that maps to full brightness (a ~38 dB window = strong beats) */
-#define SHOW_MIN      15   /* the floor between beats: nearly off, so pulses stand apart */
-#define SHOW_MAX      255
+#define SHOW_DROP                                                                                                      \
+    55 /* the LED's own peak-hold decay, Q8-log units a 10 ms frame: a beat snaps up, then falls this
+                          * fast (quicker than the DSP meter's own ~0.4 s) so fast beats don't blend into one glow */
+#define SHOW_SPAN_MIN                                                                                                  \
+    512 /* the auto-range never maps a window tighter than this (~12 dB): a near-constant signal then
+                           * stays dim instead of blowing meter noise up to full brightness */
+/* the colour changes ON THE BEAT, not on a fixed clock: a new random colour when the brightness rises past _HI after
+ * it dropped below _LO (hysteresis), no sooner than _MIN_MS apart; _MAX_MS forces a change so a beatless passage still
+ * drifts */
+#define SHOW_BEAT_LO      60
+#define SHOW_BEAT_HI      170
+#define SHOW_BEAT_MIN_MS  110
+#define SHOW_COLOR_MAX_MS 3000
 
 /* CUPD with CMR.CPD = 0 -> new duty at the next period boundary. Async: ASF's sync variant busy-waits for the
  * period end (~8.5 ms per channel), which would stall the cooperative main loop. */
@@ -162,8 +171,10 @@ static rgb8_t hue_wheel(uint16_t h) {
 static uint8_t show_src = 0xFF, show_player = 0xFF;
 static uint32_t show_t0, show_hue_t; /* intro start; when the current random colour was picked */
 static bool show_active;
-static uint16_t show_hue; /* 0..1535, the current colour */
-static uint8_t show_lvl;  /* brightness 0..255, recomputed each frame */
+static uint16_t show_hue;                   /* 0..1535, the current colour */
+static uint8_t show_lvl;                    /* brightness 0..255, recomputed each frame */
+static int32_t show_fast, show_hi, show_lo; /* the peak-hold level and the auto-range window (Q8 log) */
+static bool show_beat_armed;                /* brightness fell below _LO: ready to fire a colour on the next beat */
 
 /* a fresh colour at least ~70 deg away from the last, so each 1 s change is clearly different */
 static uint16_t next_hue(uint16_t old) {
@@ -174,20 +185,39 @@ static uint16_t next_hue(uint16_t old) {
 }
 
 static void show_tick(uint32_t now) {
-    if (tick_after(now, show_hue_t + SHOW_COLOR_MS)) {
-        show_hue_t = now;
-        show_hue = next_hue(show_hue); /* a new random colour, a hard jump */
-    }
     int32_t lv = source_vis_level();
-    uint32_t e = ilog2q8(lv < 0 ? 0 : (uint32_t)lv);
-    int32_t b; /* brightness straight off the peak meter: wide range, low floor -> beats stand apart */
-    if (e <= SHOW_E_LO)
-        b = SHOW_MIN;
-    else if (e >= SHOW_E_HI)
-        b = SHOW_MAX;
+    int32_t e = (int32_t)ilog2q8(lv < 0 ? 0 : (uint32_t)lv);
+    /* the LED's own peak-hold: snap up to a new peak, else fall SHOW_DROP a frame (faster than the DSP meter), so
+     * quick beats come back down before the next and stay separate */
+    if (e > show_fast)
+        show_fast = e;
+    else if ((show_fast -= SHOW_DROP) < 0)
+        show_fast = 0;
+    /* auto-range: map the level across the music's OWN recent window [trough..peak], so dynamics show whatever the
+     * meter's absolute level is (a hot digital source sits near full scale, yet its beats still swing the window) */
+    if (show_fast > show_hi)
+        show_hi = show_fast;
     else
-        b = SHOW_MIN + (int32_t)(e - SHOW_E_LO) * (SHOW_MAX - SHOW_MIN) / (SHOW_E_HI - SHOW_E_LO);
-    show_lvl = (uint8_t)b;
+        show_hi -= (show_hi - show_fast) >> 8; /* peak, ~2.5 s decay (keeps some loud-vs-quiet feel) */
+    if (show_fast < show_lo)
+        show_lo = show_fast;
+    else
+        show_lo += (show_fast - show_lo) >> 10; /* trough, ~10 s rise */
+    int32_t span = show_hi - show_lo;
+    if (span < SHOW_SPAN_MIN)
+        span = SHOW_SPAN_MIN;
+    int32_t b = (show_fast - show_lo) * 255 / span;
+    show_lvl = (uint8_t)(b < 0 ? 0 : b > 255 ? 255 : b);
+    /* dynamic colour: change ON THE BEAT. Arm when the LED dips below _LO, fire a new colour when it next rises past
+     * _HI (a beat), at most every _MIN_MS; _MAX_MS forces one so a beatless passage still drifts */
+    if (show_lvl < SHOW_BEAT_LO)
+        show_beat_armed = true;
+    if ((show_beat_armed && show_lvl > SHOW_BEAT_HI && tick_after(now, show_hue_t + SHOW_BEAT_MIN_MS)) ||
+        tick_after(now, show_hue_t + SHOW_COLOR_MAX_MS)) {
+        show_beat_armed = false;
+        show_hue = next_hue(show_hue);
+        show_hue_t = now;
+    }
 }
 /* each frame: run the 5 s intro -> show timer off the current look, and tick the show while it is on */
 static void show_update(uint32_t now) {
@@ -203,6 +233,9 @@ static void show_update(uint32_t now) {
             show_active = true;            /* glow_scene changes -> glow_frame crossfades into the show */
             show_hue = next_hue(show_hue); /* first random colour right away */
             show_hue_t = now;
+            show_fast = show_hi = 0; /* a fresh auto-range window */
+            show_lo = 0x40000000;
+            show_beat_armed = false;
         }
     } else {
         show_src = show_player = 0xFF;
