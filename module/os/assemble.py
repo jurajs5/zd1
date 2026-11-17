@@ -254,8 +254,15 @@ def lightning(cfg, parts, out, fw_path, base_nand, version, built):
     install(base_nand, image, os.path.join(out, "nand_os_zd1l.bin"))
     # the emulator's: the same with zd1-linkd logging every MCU request (zd1.linktrace), never for a unit
     pt = os.path.join(out, "payload_zd1l_trace.bin")
-    payload(cfg, parts, os.path.join(out, "system-zd1l.cpio.gz"), pt, ZD1L_CMDLINE + " zd1.linktrace", dev=True)
+    payload(cfg, parts, os.path.join(out, "system-zd1l.cpio.gz"), pt, ZD1L_CMDLINE + " zd1.linktrace zd1.debug", dev=True)
     open(os.path.join(out, "os-zd1l-trace.bcd"), "wb").write(mkbcd.build(zd1l_template(fw_path), open(pt, "rb").read()))
+    # os-zd1l-ours.bcd: the same direct-boot system WITHOUT zd1.mcu=stock, so zd1-linkd speaks our dialect
+    # (0xC0/0xC3/0xC6). Pairs with OUR MCU firmware (not B&W's) in the .fw, flashed through BL2 together: our MCU
+    # drives the amp and the LED properly, which the stock MCU app can't for a Wi-Fi boot source (docs/stock-mcu.md,
+    # the amp-acquire gap). The stock MCU can't talk this dialect, so this .bcd is only ever paired with our MCU part.
+    po = os.path.join(out, "payload_zd1l_ours.bin")
+    payload(cfg, parts, os.path.join(out, "system-zd1l.cpio.gz"), po, "", dev=True)
+    open(os.path.join(out, "os-zd1l-ours.bcd"), "wb").write(mkbcd.build(zd1l_template(fw_path), open(po, "rb").read()))
 
 
 def zd1l_fw(fw_path, image, out):

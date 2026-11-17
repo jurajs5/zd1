@@ -1,0 +1,53 @@
+# Track B: our OWN MCU firmware on the Zeppelin Air with Lightning (ZD1L), not B&W's stock MCU app.
+# Builds our MCU firmware (needs the x86_64 AVR32 toolchain, hence CI) and the normal-mode direct-boot module
+# (os-zd1l-ours.bcd, no zd1.mcu=stock), and validates the pair in Renode as board variant 2 (the real unit) before
+# anything is flashed. Artifacts: our MCU firmware, os-zd1l-ours.bcd (pack into a .fw with zair fw pack), and logs.
+name: zd1l-ours
+on:
+  push:
+    branches: [zd1l-ours]
+  workflow_dispatch:
+jobs:
+  build-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@v16
+      - uses: cachix/cachix-action@v15
+        with:
+          name: pawlowskialex-zd1
+          skipPush: true
+      - name: Renode and the test unit
+        run: python3 emu/zemu setup
+      - name: build our MCU firmware and the module images
+        run: |
+          set -eu
+          nix build .#mcu -o "$RUNNER_TEMP/mcu" -L
+          nix build .#os-image -o "$RUNNER_TEMP/os" -L
+          echo "== our MCU firmware =="; ls -laL "$RUNNER_TEMP/mcu" || true; find "$RUNNER_TEMP/mcu" -maxdepth 2 -type f -printf '%s\t%p\n' || true
+          echo "== module images =="; ls -laL "$RUNNER_TEMP/os"/ | grep -E 'os-zd1l'
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp -L "$RUNNER_TEMP/os/os-zd1l-ours.bcd" "$GITHUB_WORKSPACE/out/"
+          cp -rL "$RUNNER_TEMP/mcu" "$GITHUB_WORKSPACE/out/mcu-firmware" || cp -L "$RUNNER_TEMP/mcu" "$GITHUB_WORKSPACE/out/mcu-firmware.bin"
+      - name: "validate: our module + our MCU firmware in Renode (board variant 2)"
+        run: |
+          set -u
+          python3 emu/zemu run "$RUNNER_TEMP/os/os-zd1l-ours.bcd" --mcu \
+            --renode 'zd1:board Adc "2:0x300"' \
+            --name oursZ -q --timeout 1200 \
+            --until 'zd1 module OS' --sleep 150 \
+            --sh 'zd1-ctl state playing airplay' --sleep 25 \
+            --sh 'zd1-ctl volume 40' --sleep 10 \
+            --sh 'zd1-ctl status' --sleep 5 \
+            || echo "zemu exit $?"
+          echo "== MCU log (our firmware; want RUN, source Wi-Fi, DRC 0xDF+0xE2 amp, NO system error) =="
+          cat emu/run/oursZ/mcu_log.txt || true
+          echo "== module console (our dialect: 0xC3 greet, linkd, DRC, amp, ready) =="
+          grep -a -h -E "linkd|DRC|amp|greet|0xc3|0xC3|panic|Oops|error|ready|source|AMP" emu/run/oursZ/module_uart1.log | tail -80 || true
+          cp -rL emu/run/oursZ "$GITHUB_WORKSPACE/out/emu-oursZ" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zd1l-ours
+          path: out/**
