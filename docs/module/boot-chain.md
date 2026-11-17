@@ -111,14 +111,23 @@ A real Lightning unit's BL2, contributed by a ZD1L owner: dumped over the stock-
   accepted, and the page then fires `GET /goform/formDownloadConfirmationHandler?button=++++++Ok++++++` to start the
   burn (a non-empty body is the `_HWID`/incompatible error). `firmware_status.asp` carries `<new>`, `<host>`,
   `<finished>`, `<success>` (module) and `<success1>` (host/MCU).
-- **A modified image burns only through the expert confirm** [HW, a ZD1L owner, issue #1; their Ghidra pass]:
-  `checkBCDAndFlashStatus` (0x60063de4) checks the header CRC, the HWID against PersParam and each section's CRC, and
-  flags an image that isn't B&W's (`user_mod`) without refusing it, so the POST is accepted; the plain
-  `formDownloadConfirmationHandler` then refuses a `user_mod` image (302 to `/1000/FWUCHandlerPage`, nothing burned).
-  What burns it: `GET /1000/firmware_prepare.asp` (arms the upload; without it the POST may 302 to
-  `FileStatusHandlerPageUndefined`), the POST, `GET /1000/firmware_expert.asp`, `GET
+- **The upload, step by step** [HW, a ZD1L owner, issue #1; RE and EMU 2026-11-17, `re/ghidra/setup.py bl2-zd1l`]:
+  `GET /1000/firmware_prepare.asp` (arms the upload; without it the POST may 302 to
+  `FileStatusHandlerPageUndefined`; the ~7 MB size cap and the "persistent lock" reported earlier were this), the POST
+  (302 to `/1000/firmware_apply.asp`), **`GET /1000/firmware_apply.asp`**, `GET /1000/firmware_expert.asp`, `GET
   /goform/formExpertDownloadConfirmationHandler?button=++++++Ok++++++`, then `firmware_status.asp` until `finished`.
-  The ~7 MB size cap and the "persistent lock" reported earlier were the missing arm.
+  - **The apply page arms the confirm.** Its one line, `aspSetFirmwareUploadConfirmationHandler` (0x600c6910) with
+    `"button"`, the Ok value, `"firmware_status.asp"` and `"bl_index.asp"`, copies the button's name and value and the
+    two pages the confirm goes on to into RAM (0x6040a304), with no check of the image; until it runs they hold their defaults
+    (`FWUCButtonName`, ..., `FWUCHandlerPage`), so a confirm without it redirects to `/1000/FWUCHandlerPage` and burns
+    nothing, whatever the image: the same `.fw` burned after the apply page and didn't without it [EMU]. B&W's
+    `scripts/firmware.js` loads it into an iframe after the POST; an empty body (a BOM) means accepted, `_HWID` the
+    wrong hardware.
+  - **The expert confirm** (0x600d446c) takes the same button, and checkbox parameters for the CnE download and the
+    HWID override. `checkBCDAndFlashStatus` (0x6006a1d4) checks the header CRC, the HWID against PersParam (unless the
+    expert value is 0xF6) and each section's CRC; it marks the upload "user mode, configure Cne download" when the
+    unit's NAND has no factory CnE (type 4) or app (type 2) partition, or the upload's model id differs from the
+    installed app's. What the image is doesn't enter into it beyond the model id.
 - **In the emulator** [EMU 2026-11-17]: it runs from a test NAND with it at 0xA0000, PersParam's HWID 0xBE and
   `os-zd1l.bcd` installed, entered from our OS (`zemu run IMAGE --nand --nand-image NAND --mcu FLASH --renode 'zd1:board
   Adc "2:0x300"' --fwd 18080:80 --host 'zd1 module bl2'`, then the expert recipe above against 127.0.0.1:18080):
