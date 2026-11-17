@@ -111,12 +111,12 @@ and what is known. What already works: `status.md`; checks that need a person at
   [EMU]. Much is now answered on hardware (issue #1): its BL2 is in hand (`blobs/module/bl2-zd1l.bin`, 2012 MR5 build),
   its web updater **takes the whole `.fw` and flashes both the module `.bcd` and the MCU `.dmb`** — the MCU part over
   SPI XModem (`docs/protocol/sequences.md`, "MCU (host) firmware over SPI") — and a ZD1L owner drove it end-to-end to
-  install the telnet hook [HW 2026-11-16]. So **our firmware on a ZD1L can go in the same way** (`.#mcu-dmb` +
-  `bwfw.py --pack` + BL2's web updater, no USB DFU, no stock-MCU mode), subject to BL2's HWID (expert override) and
-  host-version checks. The way back is the stock `zd1lv20435.fw` (HWID 0xBE). Still open: the ZD1L **MCU bootloader**
+  install the telnet hook [HW 2026-11-16]. So **our firmware on a ZD1L can go in the same way**: `nix build .#zd1l-fw`
+  (`docs/mcu/stock-firmware.md`, "Our firmware as a `.dmb`") from key-hold through BL2's expert confirm
+  (`docs/module/boot-chain.md`, "The ZD1L BL2"), no USB DFU, no stock-MCU mode. `bl2web` doesn't speak that recipe yet. The way back is the stock `zd1lv20435.fw` (HWID 0xBE). Still open: the ZD1L **MCU bootloader**
   (who initiates the SPI DFU, and whether USB DFU exists at all) — a read-only UC3 JTAG dump (TMS is TP88, the rest of
-  TP88-91 inferred) or an MCU-flash-over-SPI read would show it; packing and installing *our* `.dmb` on a real ZD1L
-  end-to-end; and an owner pursuing a module-OS-on-stock-MCU route (issue #1).
+  TP88-91 inferred) or an MCU-flash-over-SPI read would show it; `zd1l.fw` installed on a real ZD1L, and what of our MCU firmware works
+  on its board (variant 2: the Lightning dock and the USB mux are the ZD1's code); and an owner pursuing a module-OS-on-stock-MCU route (issue #1).
 - **The A7**: the module program is the Zeppelin's, its MCU app (`AZ1_v2-04-77.dmb`, booting on the ZD1 board model) is
   another build of the same code; a port means its pins, DSP, amp and keys from that binary, and an A7 to try it on.
   The telnet hook already ports to it: `stock-patch/patch.py --fw` handles A7 2.04.77 (`voTask`/`WRITEREG` unchanged,

@@ -126,6 +126,18 @@ OUT.fw os.bcd zd1emudmb.bin --name ZD1L_v2-04-35.dmb --version 2.04.35 --hwid 0x
 DIR/module.bcd --mcu DIR/mcu_flash.bin --renode 'zd1:board Adc "2:0x300"' --allow-panic`]. That the Lightning unit has
 the same branch at 0x80004000 is inferred from every `.dmb` starting at 0x8000.
 
+**Our firmware for a ZD1L, both chips in one `.fw`**: `nix build .#zd1l-fw` (`result/zd1l.fw`, 6.9 MB; `nix/zd1l-fw.nix`).
+The module part is `os-zd1l.bcd`: the boot stub, the kernel and the whole release system as one initramfs (no slots,
+no rescue: `docs/module/storage.md`, "The full image"), built from its parts (`mkbcd`): B&W's preloader and the ZD1L's
+factory CnE from `blobs/`, no resources (an empty section: the ZD1L's BL2 writes the partition empty, and our OS
+doesn't read it), HWID 0xBE, our build date. The MCU part is `.#mcu-dmb` under B&W's name and
+version (`ZD1L_v2-04-35.dmb`, 2.04.35, release 20435), as the telnet-hook `.fw` the ZD1L's BL2 burned. It goes in
+through BL2's web updater from key-hold, with the expert confirm (`docs/module/boot-chain.md`, "The ZD1L BL2": BL2
+sends the MCU part first and needs the MCU's bootloader for it); the way back is key-hold → BL2 → `zd1lv20435.fw`. In the emulator, the same file with `.#mcu-emu-dmb`, cut by `bwfw.py` and booted on
+board variant 2, runs: no slot, every service up, the MCU link ready, 13.5 MB of 28.4 MB free with the receivers
+running (the root holds ~10 MB of RAM) [EMU 2026-11-17: `zemu run DIR/module.bcd --nand --mcu DIR/mcu_flash.bin
+--renode 'zd1:board Adc "2:0x300"'`]. Not yet on a ZD1L.
+
 **A telnet hook on the stock 2.04.35, repacked as a `.fw`** (`stock-patch/`, `patch.py --fw`): a way to a shell on a
 stock ZD1L without replacing its firmware, e.g. to read BL2 out (`fburn rd`, the reverse-SPI code the relay needs). The
 2.04.05 hook (HW-proven 2026-10-16) ports to 2.04.35 untouched: every address it uses is byte-identical, only sbrk's

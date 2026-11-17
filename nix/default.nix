@@ -268,6 +268,11 @@ in
     mcu-emu = stampMcu mcu.mcu-emu-raw;
     mcu-dmb = stampMcu mcu.mcu-dmb-raw;
     mcu-emu-dmb = stampMcu mcu.mcu-emu-dmb-raw;
+    # both chips of a Zeppelin Air with Lightning in one B&W .fw, for its BL2 web updater (nix/zd1l-fw.nix)
+    zd1l-fw = pkgs.callPackage ./zd1l-fw.nix {
+      inherit src os-image;
+      mcu-dmb = stampMcu mcu.mcu-dmb-raw;
+    };
   };
 
   formatter = treefmt;

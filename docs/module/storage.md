@@ -85,6 +85,11 @@ leftovers) is formatted once. It is never reformatted for a new image, newer or 
 The emulator's dev boot (`zemu run`) is the system as one initramfs, `/init` its `/sbin/init`, without the slots flag
 in the payload: the stub boots it as it is (`zd1-ctl status`: no slot).
 
+**The full image** (`payload_full.bin`; `os-zd1l.bcd` for a speaker updated by one file for both chips: the Lightning model's `.fw`,
+`docs/mcu/stock-firmware.md`) is the same for the unit: the release system as one gzip'd initramfs (5.1 MB, 10 MB in
+RAM while it runs), no slots flag and no rescue, so the MCU is never asked for a slot. The slots stay empty; `/data` is
+used as on a slot boot. An update is a whole new image.
+
 ## How the system gets there
 `zd1 update` (`docs/module/updater.md`): the image (`system.cpio.gz`, a slot's root) over USB through the MCU to
 `zd1-update`, which writes the slot that doesn't run (from the rescue: the good one) and stamps it; then the slot is

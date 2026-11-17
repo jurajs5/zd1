@@ -16,6 +16,7 @@ and the pieces of Nokia's Linux our module OS runs on, kept here so that a check
 | `module/bl2-zd1l.bin` | 1703936 | `2e6eb04f…57dfe` | the Lightning model's BL2 partition from NAND 0xA0000 (build 2012-11-06, BridgeCo MR5; `docs/module/boot-chain.md`, "The ZD1L BL2") | `fburn rd 0 0xA0000 0x1A0000` of a ZD1L owner's unit over the stock-patch telnet hook, contributed via GitHub issue #1, 2026-11-16 |
 | `module/app_DMP.bcd` | 6847488 | `568bc824…f8b11b8dd` | stock module image (app + factory CnE + resources), JukeBlox 3.8.0.9112 | B&W `zd1v20405.zip` / Recovery Utility |
 | `module/preloader.bin` | 8016 | `77934b1d…4f4b76b1` | B&W's stage 1 (the SDRAM/clock/NAND preloader, run from SRAM at 0x40DA00): an app section's bytes 0x40-0x1F8F, behind the boot header `mkbcd.py` writes; the same in the ZD1, ZD1L and A7 images | `app_DMP.bcd` section 0 (= `zd1lv20435.fw`'s, `a7v20477.fw`'s) |
+| `module/zd1l/cne.bin` | 69084 | `aeb57ab5…09bbe952` | the Zeppelin Air with Lightning's factory CnE (`.bcd` section 1; differs from the ZD1's in `TCPIPTunnel = 'OFF'`): the ZD1L's BL2 writes it to the factory CnE at NAND 0x40000, so `os-zd1l.bcd` carries the ZD1L's own | B&W `zd1lv20435.fw` (ZD1L 2.04.35, `downloads/manifest.json`), its `.bcd`'s section 1 |
 
 ## `module/nokia-hd1/`: Nokia's Linux for the module's chip
 
