@@ -17,7 +17,7 @@ The images (emu/img/os/; docs/module/storage.md):
     rescue.cpio(.gz)        the rescue, the app partition's initramfs: its busybox, the core programs, /init
     payload_dev.bin         emulator dev boot (`zemu run os`): the debug system as one plain initramfs at
                             0x61000000, zd1.selftest zd1.debug
-    payload.bin, os.bcd     the flashable app image (stock preloader + our stub/kernel/gzip rescue; the relay, BL2):
+    payload.bin, os.bcd     the flashable app image (B&W's preloader + our stub/kernel/gzip rescue; the relay, BL2):
                             the system goes into a slot with `zd1 update`
     payload_full.bin        the whole system (release) as the boot initramfs, no slots and no rescue: for a speaker
                             whose updates come as one file for both chips (docs/module/storage.md)
@@ -194,25 +194,21 @@ def payload(cfg, parts, initrd, out, cmdline_extra="", how="slots"):
     sh(PY + [os.path.join(HERE, "mkpayload.py")] + files + [out] + args + ["--cmdline", cmdline])
 
 
-def wrap(payload_bin, out):
-    """The payload wrapped like the stock app (stock preloader, CnE, resources) for the relay and BL2. The system
-    isn't in it: `zd1 update` puts it into a slot (docs/module/updater.md)."""
-    stock = open(os.path.join(REPO, "blobs/zd1/module/app_DMP.bcd"), "rb").read()
-    open(out, "wb").write(mkbcd.build(payload=open(payload_bin, "rb").read(), **mkbcd.template(stock)))
-    log("  %s %d B" % (os.path.basename(out), os.path.getsize(out)))
+# The models' .bcd parts besides the payload (blobs/README.md): HWID and factory CnE. B&W's preloader is common; the
+# resources (the stock app's web UI, which our OS doesn't read) are left empty: BL2 writes the partition empty.
+MODELS = {"zd1": 0xBD, "zd1l": 0xBE}
 
 
-def zd1l(payload_bin, out, built):
-    """The payload as the Zeppelin Air with Lightning's .bcd (blobs/README.md): B&W's preloader, the ZD1L's factory
-    CnE, its HWID (0xBE), our build date; the resources (the stock app's web UI) empty: its BL2 writes the partition
-    empty (docs/module/boot-chain.md, "The ZD1L BL2")."""
+def bcd_image(payload_bin, out, model, built):
+    """The payload as a model's .bcd for BL2 (its web updater, the relay's XModem): B&W's preloader, the model's HWID
+    and factory CnE, no resources, our build date (docs/module/boot-chain.md, ".bcd images")."""
     blob = lambda name: open(os.path.join(REPO, "blobs", name), "rb").read()
     image = mkbcd.build(
         stage1=blob("dm870/preloader.bin"),
         payload=open(payload_bin, "rb").read(),
-        cne=blob("zd1l/module/cne.bin"),
+        cne=blob("%s/module/cne.bin" % model),
         resources=[],
-        hwid=0xBE,
+        hwid=MODELS[model],
         date="".join(c for c in built if c.isdigit()).ljust(14, "0"),
     )
     open(out, "wb").write(image)
@@ -239,7 +235,7 @@ def assemble(cfg, parts, out, version, built, base_nand):
     cpio(sysroot, out, "initramfs-full")
     shutil.rmtree(sysroot)
     payload(cfg, parts, os.path.join(out, "initramfs-full.cpio.gz"), os.path.join(out, "payload_full.bin"), how="full")
-    zd1l(os.path.join(out, "payload_full.bin"), os.path.join(out, "os-zd1l.bcd"), built)
+    bcd_image(os.path.join(out, "payload_full.bin"), os.path.join(out, "os-zd1l.bcd"), "zd1l", built)
     log("system-debug")
     make_system(cfg, parts, sysroot, version, built, debug=True)
     cpio(sysroot, out, "system-debug", slot=True)
@@ -255,7 +251,7 @@ def assemble(cfg, parts, out, version, built, base_nand):
     for suffix, cmdline in variants:
         p = os.path.join(out, "payload%s.bin" % suffix.replace("-", "_"))
         payload(cfg, parts, os.path.join(out, "rescue.cpio.gz"), p, cmdline)
-        wrap(p, os.path.join(out, "os%s.bcd" % suffix))
+        bcd_image(p, os.path.join(out, "os%s.bcd" % suffix), "zd1", built)
     install(base_nand, os.path.join(out, "os.bcd"), os.path.join(out, "nand_os.bin"))
     # the emulator's dev boot: the debug system as one plain initramfs loaded straight into SDRAM, its init as /init
     log("initramfs-dev")

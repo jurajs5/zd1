@@ -19,6 +19,7 @@ both share: `dm870/` (B&W's module images' common part) and `nokia-hd1/` (the Li
 | `module/bl1.run` | 35336 | `58f30c4d…f2e9b92c9` | BL1, re-runnable: the stage-2-entry SRAM capture (`re/netmodule/bl1/sram_at_stage2_entry.bin`) cut at BL1's end 0x8A08, the scatter-load call at 0x400010 replaced by `b 0x400688` (the C entry; its data is already unpacked, in the post-boot state). What `zemu run --nand --real-bl1` executes | made from that capture (`re/netmodule/bl1/README.md`), 2026-10-23 |
 | `module/bl2.bin` | 798720 | `fefd9a49…30181c` | module BL2 partition from NAND 0xA0000 (MetaInfo header + BL2, CRC OK) | `fburn rd` of our unit |
 | `module/app_DMP.bcd` | 6847488 | `568bc824…f8b11b8dd` | stock module image (app + factory CnE + resources), JukeBlox 3.8.0.9112 | B&W `zd1v20405.zip` / Recovery Utility |
+| `module/cne.bin` | 69096 | `ff4bed39…6e945592` | its factory CnE (`.bcd` section 1, `TCPIPTunnel = 'REMOTE_REGISTERS'`), the CnE of `os.bcd` | `app_DMP.bcd`, section 1 |
 
 ## `zd1l/`: the Zeppelin Air with Lightning
 

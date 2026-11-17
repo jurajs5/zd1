@@ -14,6 +14,7 @@ MODULE_BL1 = os.path.join(BLOBS, "zd1", "module", "bl1.enc")  # NAND block 0 as 
 MODULE_BL2 = os.path.join(BLOBS, "zd1", "module", "bl2.bin")  # NAND 0xA0000 partition (MetaInfo + BL2)
 MODULE_BL1_RUN = os.path.join(BLOBS, "zd1", "module", "bl1.run")  # BL1 decrypted, re-runnable at 0x400000
 MODULE_STOCK_BCD = os.path.join(BLOBS, "zd1", "module", "app_DMP.bcd")  # stock module app + CnE + resources
+ZD1_CNE = os.path.join(BLOBS, "zd1", "module", "cne.bin")  # its factory CnE
 # the Zeppelin Air with Lightning (ZD1L)
 ZD1L_STOCK_FW = os.path.join(BLOBS, "zd1l", "zd1lv20435.fw")  # B&W's last release, both chips: the way back
 ZD1L_BL2 = os.path.join(BLOBS, "zd1l", "module", "bl2.bin")  # its NAND 0xA0000 partition

@@ -21,8 +21,8 @@ stdenvNoCC.mkDerivation {
     "tools/zeppelin/__init__.py"
     "tools/zeppelin/fw/bcd.py"
     "tools/zeppelin/fw/mkbcd.py"
-    "blobs/zd1/module/app_DMP.bcd"
     "blobs/dm870/preloader.bin"
+    "blobs/zd1/module/cne.bin"
     "blobs/zd1l/module/cne.bin"
     "blobs/nokia-hd1"
   ];
