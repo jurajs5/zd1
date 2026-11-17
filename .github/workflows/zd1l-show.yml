@@ -1,0 +1,34 @@
+# Build a flashable Zeppelin Air with Lightning (ZD1L) .fw from this branch: the maintainer's ZD1L support plus our
+# beat-reactive LED show and the no-pop-on-source-switch fix (mcu/src only). Both chips in one B&W .fw for the BL2 web
+# updater: the module as os-zd1l.bcd and our MCU firmware linked at 0x80008000 (mcu-dmb), via nix/zd1l-fw.nix. Nix on
+# GitHub's x86_64 runner (the AVR32 toolchain is x86_64), reading the maintainer's public Cachix cache for speed.
+name: zd1l-show
+on:
+  push:
+    branches: [zd1l-show]
+  workflow_dispatch:
+jobs:
+  fw:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@v16
+      - uses: cachix/cachix-action@v15
+        with:
+          name: pawlowskialex-zd1
+          skipPush: true
+      - name: build the flashable ZD1L .fw
+        id: build
+        run: |
+          set -eu
+          mkdir -p out
+          fw="$(nix build .#zd1l-fw --print-out-paths -L)/zd1l.fw"
+          cp "$fw" "out/zd1l-show.fw"
+          echo "== the packed .fw (bwfw.py verify) =="
+          ls -l out/zd1l-show.fw
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zd1l-show-fw
+          path: out/zd1l-show.fw
+          retention-days: 30
