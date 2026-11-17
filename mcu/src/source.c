@@ -23,13 +23,17 @@ static uint32_t source_amp_idle_ms(void) { return (uint32_t)g_settings.amp_idle_
 #define RAMP_FAST_MS    40   /* around a USB stream's (re)start */
 #define CYCLE_COMMIT_MS 1000 /* stock timer 0x1a: switch 1 s after the last short ON/OFF press */
 /* ours */
-#define AMP_HOLD_MS   30000 /* standby: the supply stays on (muted) this long, so a quick wake doesn't cycle it */
-#define USER_GUARD_MS 8000  /* after a source picked by hand, nothing switches by itself */
+#define AMP_HOLD_MS 30000 /* standby: the supply stays on (muted) this long, so a quick wake doesn't cycle it */
+/* a source switch mutes the amp first; keep it muted this long before the unmute, so the input-mux glitch and the
+ * DAC's soft-mute ramp die out while silent (no speaker pop) */
+#define SWITCH_SETTLE_MS 80
+#define USER_GUARD_MS    8000 /* after a source picked by hand, nothing switches by itself */
 /* a USB stream takes the speaker (or wakes it) after sounding this long without a break, so that a system sound
  * doesn't (an alert lasts up to ~1.4 s [HW 2026-10-27]) */
 #define USB_TAKE_MS    3000
 #define SETTLE_AUTO_MS 5000 /* a source that took over by itself, silent this long: back to the computer playing */
 #define LEVEL_MS       50   /* the DSP's input meter read this often (AUX) */
+#define VIS_MS         20   /* ... and this often for the LED show (any source, ~50 Hz: beat pulses, light on I2C) */
 /* Sound on a metered input: 12 dB over that source's own noise floor, which is learnt: it drops to the lowest reading
  * at once and creeps up ~1 dB per 24 s while the level stays above it (music's quiet moments pull it back down); the
  * threshold kept within -80..-40 dBFS. Measured with a MacBook on AUX: floor -86 dBFS (a spike to -76), music at its
@@ -72,6 +76,8 @@ static uint32_t t_user;    /* the last source change by hand (keys, remote, plug
 static uint32_t t_active;  /* the current source last had sound */
 static int32_t level = -1; /* the DSP's input meter, last sample (-1: not read) */
 static uint32_t t_level, t_level_read; /* over the threshold last / read last */
+static int32_t vis_level;              /* the DSP input peak for the LED show (any source, before the volume) */
+static uint32_t t_vis;                 /* the show meter read last */
 static uint32_t floor_lv[SRC_N];       /* the learnt noise floor per metered source (5.23; 0: not learnt yet) */
 static uint32_t t_settle;              /* the meter decides nothing before this */
 
@@ -146,6 +152,7 @@ static source_t wake_target(void) {
     return present(SRC_WIFI) ? SRC_WIFI : SRC_NONE;
 }
 int32_t source_level(void) { return metered() ? level : 0; }
+int32_t source_vis_level(void) { return vis_level; }
 uint32_t source_level_floor(void) { return metered() ? floor_lv[cur] : 0; }
 static uint32_t level_threshold(void) {
     uint32_t t = floor_lv[cur] * 4; /* +12 dB */
@@ -238,6 +245,7 @@ static void announce(void) {
     log_putc('\n');
 }
 static void enter_standby(void) {
+    amp_mute(); /* output stage off first: no pop as the volume drops to mute (see enter_run) */
     if (cur == SRC_WIFI)
         wifi_leave();     /* stock: DE + E1 */
     codec_dac_mute(true); /* stock FUN_800138f0 */
@@ -256,12 +264,13 @@ static void enter_run(source_t s, uint32_t now) {
         enter_standby();
         return;
     }
+    amp_mute(); /* kill the output stage FIRST: the volume drop, DAC mute and input-mux switch below must not reach a
+                 * live amp, or the speaker pops on every source change [HW 2026-11] */
     if (cur == SRC_WIFI && s != SRC_WIFI && state == SYS_RUN)
         wifi_leave(); /* stock: DE + E1 */
     bool to_wifi = s == SRC_WIFI && !(cur == SRC_WIFI && state == SYS_RUN);
     codec_dac_mute(true); /* stock FUN_800138f0 on every source switch */
     set_vol(DSP_VOL_MUTE);
-    amp_mute();
     route(s);
     cur = s;
     state = SYS_RUN;
@@ -780,6 +789,18 @@ void source_poll(uint32_t now) {
         t_level_read = now;
         level_sample(now);
     }
+    /* a light input meter for the LED show: whatever plays now, any source, before the volume stage, sampled faster
+     * than the AUX meter and off the amp-sleep path, so the LED can pulse to the beat (source_vis_level) */
+    if (state != SYS_RUN || phase == RUN_ASLEEP)
+        vis_level = 0;
+    else if (metered())
+        vis_level = level >= 0 ? level : 0; /* reuse the AUX sample, no extra I2C */
+    else if (tick_after(now, t_vis + VIS_MS)) {
+        t_vis = now;
+        int32_t v = dsp_level();
+        if (v >= 0)
+            vis_level = v; /* a failed read keeps the last */
+    }
     auto_switch(now);
     settle(now);
 
@@ -789,6 +810,8 @@ void source_poll(uint32_t now) {
         switch (phase) {
         case RUN_SOFTSTART: { /* unmute once amp.c's soft start allows it (asked every pass until it does) */
             bool may = amp_may_run();
+            if (may && !tick_after(now, t_phase + SWITCH_SETTLE_MS))
+                break; /* hold the amp muted a touch after the switch so the mux/DAC transient dies first (no pop) */
             if (may && !amp_unmute())
                 break;
             if (may)
