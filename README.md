@@ -105,7 +105,7 @@ zd1 install --unit units/my-zeppelin --yes    # the speaker in its bootloader (s
 zd1 wifi "Your network"                       # asks for the passphrase
 ```
 Then `zd1 info` shows the speaker's state, `zd1 --help` has the rest; `zd1 update` and `mcu/flash.sh` install new
-builds, `zd1 rollback blobs/module/app_DMP.bcd blobs/mcu/zd1-2.04.05.hex --unit units/my-zeppelin --yes` goes back to
+builds, `zd1 rollback blobs/zd1/module/app_DMP.bcd blobs/zd1/mcu/zd1-2.04.05.hex --unit units/my-zeppelin --yes` goes back to
 stock, `zd1 dfu restore BACKUP.tar --yes` writes a backup back, and `zd1 module esc` gets the network module into its
 bootloader whatever it runs.
 

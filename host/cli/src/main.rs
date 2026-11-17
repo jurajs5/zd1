@@ -143,7 +143,7 @@ enum Cmd {
         yes: bool,
     },
     /// The stock firmware back on both boards, the module first: the stock .bcd through the relay (~6.5 min), then
-    /// the stock MCU firmware (blobs/mcu/zd1-2.04.05.hex, or a backup's app_flash.bin), with a backup of what is on
+    /// the stock MCU firmware (blobs/zd1/mcu/zd1-2.04.05.hex, or a backup's app_flash.bin), with a backup of what is on
     /// the MCU first. The speaker comes up unconfigured, as from the factory.
     Rollback {
         /// The stock module image (.bcd).

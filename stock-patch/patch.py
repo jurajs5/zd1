@@ -7,7 +7,7 @@ only: the hook blob is prebuilt (telnet_hook.bin; build.sh rebuilds it from teln
          python3 -I stock-patch/patch.py --fw IN.fw OUT.fw             # ZD1L 2.04.35 or A7 2.04.77, a B&W .fw
 
 The .hex path flashes over DFU: zd1 bootloader, then zd1 dfu write OUT.hex --backup BACKUP.tar --yes --start (a
-`zd1 dfu backup` first); back to stock, the same with blobs/mcu/zd1-2.04.05.hex. The --fw path repacks a B&W over-the-air
+`zd1 dfu backup` first); back to stock, the same with blobs/zd1/mcu/zd1-2.04.05.hex. The --fw path repacks a B&W over-the-air
 .fw (bwfw.py) with its MCU app patched and its module .bcd untouched, for a unit whose only MCU-flash route is the .fw
 (the Lightning model and the A7: docs/mcu/stock-firmware.md); what on those units takes a .fw's MCU part is unconfirmed.
 
@@ -134,7 +134,7 @@ def patch_fw(fw, blob):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("out", nargs="?", metavar="OUT.hex")
-    ap.add_argument("--stock", default=os.path.join(HERE, "..", "blobs", "mcu", "zd1-2.04.05.hex"))
+    ap.add_argument("--stock", default=os.path.join(HERE, "..", "blobs", "zd1", "mcu", "zd1-2.04.05.hex"))
     ap.add_argument("--fw", nargs=2, metavar=("IN.fw", "OUT.fw"), help="patch a B&W .fw's MCU app (ZD1L or A7)")
     a = ap.parse_args()
     if not a.fw and not a.out:

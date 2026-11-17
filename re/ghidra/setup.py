@@ -119,8 +119,8 @@ IMAGES = {
         [("NetDump.java", ["{out}"])],
         [],
     ),
-    "bl2-zd1l": (  # the Lightning model's BL2 (blobs/module/bl2-zd1l.bin, "The ZD1L BL2" in docs/module/boot-chain.md)
-        lambda: bl2_stages(os.path.join(paths.BLOBS, "module", "bl2-zd1l.bin"))[1],
+    "bl2-zd1l": (  # the Lightning model's BL2 (blobs/zd1l/module/bl2.bin, "The ZD1L BL2" in docs/module/boot-chain.md)
+        lambda: bl2_stages(paths.ZD1L_BL2)[1],
         "ARM:LE:32:v5t",
         0x60008000,
         ["Bl2Pre.java", "Bl2Thumb.java", "Bl2Recover.java"],

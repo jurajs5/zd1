@@ -1,13 +1,13 @@
 # Patching the stock MCU firmware
 
-`patch.py` puts the telnet hook into the stock Zeppelin Air MCU app (2.04.05, `blobs/mcu/zd1-2.04.05.hex`): once the
+`patch.py` puts the telnet hook into the stock Zeppelin Air MCU app (2.04.05, `blobs/zd1/mcu/zd1-2.04.05.hex`): once the
 module is ready, the MCU writes reg 0x75 = "23" and reg 0x76 = 5, the module's KnOS shell on telnet port 23,
 re-asserted every ~30 s (`telnet_hook.S`). Python only:
 
 ```
-python3 -I stock-patch/patch.py out.hex                       # ZD1 2.04.05 -> a .hex for DFU
-python3 -I stock-patch/patch.py --fw zd1lv20435.fw out.fw     # ZD1L 2.04.35 -> a repacked B&W .fw
-python3 -I stock-patch/patch.py --fw a7v20477.fw out.fw       # A7 2.04.77 -> a repacked B&W .fw
+python3 -I stock-patch/patch.py out.hex                                # ZD1 2.04.05 -> a .hex for DFU
+python3 -I stock-patch/patch.py --fw blobs/zd1l/zd1lv20435.fw out.fw   # ZD1L 2.04.35 -> a repacked B&W .fw
+python3 -I stock-patch/patch.py --fw a7v20477.fw out.fw                # A7 2.04.77 -> a repacked B&W .fw
 ```
 Flashed and checked on the unit 2026-10-16 (2.04.05). It is not on the unit now: that runs our own firmware (`mcu/`),
 which has the amp interlock built in and puts the shell on telnet with `zd1 reg write` (`docs/module/knos.md`).
@@ -58,7 +58,7 @@ How: the BcoWrapper tick calls `voTask` through a pointer literal; the patch poi
 the bootloader or the user page changes, so DFU recovery stays available.
 
 Flash: `zd1 dfu write out.hex --backup <backup.tar> --yes --start` (`zd1 dfu backup` first) (DFU: hold ON/OFF at power-up).
-Back to stock: the same with `blobs/mcu/zd1-2.04.05.hex`.
+Back to stock: the same with `blobs/zd1/mcu/zd1-2.04.05.hex`.
 
 The hook blob (`telnet_hook.bin`) is committed; `build.sh` rebuilds it from the source (`nix build .#telnet-hook`)
 and shows a diff if anything changed.
@@ -73,7 +73,7 @@ interlock and no way-back concern — `fburn rd` only streams bytes out.
 
 Steps (all on the owner's own unit, with their OK):
 
-1. **Patch and flash the MCU.** `python3 -I stock-patch/patch.py --fw <model>.fw out.fw` (ZD1L `zd1lv20435.fw`, A7
+1. **Patch and flash the MCU.** `python3 -I stock-patch/patch.py --fw <model>.fw out.fw` (ZD1L `blobs/zd1l/zd1lv20435.fw`, A7
    `a7v20477.fw`), then upload `out.fw` **whole** to the module's **BL2 web updater**: key-hold ON/OFF while plugging
    mains in → the module comes up on wired Ethernet (DHCP) serving the firmware-update page → upload `out.fw`. BL2
    burns both parts (module `.bcd` to NAND, the patched MCU `.dmb` to the MCU over SPI) and resets. Proven on a real
@@ -103,7 +103,7 @@ Steps (all on the owner's own unit, with their OK):
    (128/1024-byte packets) and truncates to the requested length (`docs/module/knos.md`). The result is the
    partition as burned: a partition header (first `0x80` bytes: `char date[16]`, modelId, swVersion, partitionId
    = 1 for BL2, partitionLength, imageLength, …), then the boot header (`0xAAAA5555` at `+0x80`), stage 1 and
-   stage 2 — the same layout as our `blobs/module/bl2.bin` (`docs/module/boot-chain.md`, "Partition header").
+   stage 2 — the same layout as our `blobs/zd1/module/bl2.bin` (`docs/module/boot-chain.md`, "Partition header").
    Parse/verify it with `python3 tools/zeppelin bcd` on the carved image, and compare against `bl2.bin`
    (build 2010-09-27) to see how far the Lightning model's updater has diverged.
 

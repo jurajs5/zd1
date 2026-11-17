@@ -6,7 +6,7 @@ Usage:
   python3 -I mkbcd.py --selftest TEMPLATE.bcd              # rebuild stock payload, must be byte-identical
   --misaligned: the payload padded to a length of 2 mod 4, which BL2 rejects (error 680): its failed-burn path
 
-build() makes one from its parts: B&W's stage 1 (the SDRAM/clock/NAND preloader, blobs/module/preloader.bin), the
+build() makes one from its parts: B&W's stage 1 (the SDRAM/clock/NAND preloader, blobs/dm870/preloader.bin), the
 payload as stage 2, a model's factory CnE (section 1) and resource containers (section 2; none: an empty section, which
 BL2 writes as an empty partition), the header's HWID and build date; every header and checksum is written here. The CLI takes those parts from a stock .bcd (template()); the selftest
 rebuilds a stock .bcd from its own parts. Format: docs/module/boot-chain.md (".bcd images", "Boot header");

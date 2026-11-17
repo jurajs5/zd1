@@ -61,7 +61,7 @@ jobs:
             module's boot image), \`system-$V.cpio.gz\` (\`zd1 update\`), \`manifest.json\`.
           - [\`zd1l-$V\`]($ZD1L), the Zeppelin Air with Lightning: \`zd1l-$V.fw\`, both chips, for its BL2 web updater
             from key-hold with the expert confirm (\`docs/module/boot-chain.md\`, "The ZD1L BL2"); the way back is
-            B&W's \`zd1lv20435.fw\`.
+            B&W's \`blobs/zd1l/zd1lv20435.fw\`.
           EOF
           cat body.md >>"$GITHUB_STEP_SUMMARY"
           [ -n "$PR" ] && [ "$SAME_REPO" = true ] || exit 0

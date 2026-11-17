@@ -1,6 +1,6 @@
 # The stock MCU firmware (ZD1 2.04.05)
 
-What B&W's MCU app does, as far as our firmware needs it. Source: static analysis of `blobs/mcu/zd1-2.04.05.hex`
+What B&W's MCU app does, as far as our firmware needs it. Source: static analysis of `blobs/zd1/mcu/zd1-2.04.05.hex`
 (built "Dec 1 2014", avr32-gcc + newlib + ASF, source tree "iZound"; the Ghidra exports: `re/ghidra/setup.py
 mcu-app`, then `re/gen/mcu-app/decomp_resolved.c` has literals resolved). Everything here is [RE] unless tagged; much of it was also exercised by
 running the binary in the emulator, and where our firmware reproduces it and works on the unit it says [HW].
@@ -10,7 +10,7 @@ The same binary prints "2.04.05" on board variant 1 (model FP30570, ours) and "2
 the variant is ADC2 (PA23) at boot. Also embedded: DSP release v05.09, factory protocol v01.06, EEPROM version 0x0204.
 
 Variant 2 is almost certainly the Zeppelin Air with Lightning connector (ZD1L), whose last release B&W calls 2.04.35
-(March 2015, OTA `zd1lv20435.fw`, md5 d71a10be…: `downloads/bw-zeppelin-air-software/zeppelin-air-lightning/
+(March 2015, OTA `zd1lv20435.fw`, md5 d71a10be…, kept as `blobs/zd1l/zd1lv20435.fw`: `downloads/bw-zeppelin-air-software/zeppelin-air-lightning/
 SOURCES.md`). On variant 2 the binary reports model FP35548 and no video out over iAP (variant 1:
 FP30570, video on), and only variant 2 honours the module's request to enter DFU (`docs/protocol/spi-registers.md`,
 0x27). That doesn't bring the image over the network: the MCU then waits in USB DFU for a computer on the rear port
@@ -90,11 +90,11 @@ mode), and the module on wired Ethernet only (DHCP), serving GoAhead's `/bl_inde
 Update", © 2012. `/scripts/info.asp` gives `firmware_version="105.9112"` and `host_vers="2.04.35"`;
 `/1000/firmware_status.asp` the same and the progress; `scripts/firmware.js` says "This firmware file is incorrect for
 your speaker hardware" on a reply containing `_HWID`. A plain power cycle afterwards boots stock. A second owner has
-since driven this web updater to flash a `.fw` and dump the BL2 behind it (`blobs/module/bl2-zd1l.bin`, build
+since driven this web updater to flash a `.fw` and dump the BL2 behind it (`blobs/zd1l/module/bl2.bin`, build
 2012-11-06 — the `firmware_version="105.9112"` here is the installed *module app*, not BL2) [HW 2026-11-16].
 
 **Its BL2 is not ours, and we now have it** [HW 2026-11-16]. A ZD1L owner dumped their BL2 over the stock-patch
-telnet hook (`blobs/module/bl2-zd1l.bin`; `docs/module/boot-chain.md`, "The ZD1L BL2"): a later, larger build
+telnet hook (`blobs/zd1l/module/bl2.bin`; `docs/module/boot-chain.md`, "The ZD1L BL2"): a later, larger build
 (2012-11-06, BridgeCo MR5, GoAhead "Web Version 1.19.4.2") — so the factory's, as expected (a `.bcd` has three
 sections app/CnE/resources, so no update carries a BL2). Ours (2010-09-27) serves none of those `.asp` files (404)
 [EMU 2026-11-08] and rejects a whole `.fw`; the ZD1L's serves them and **takes the whole `.fw`, flashing both the
@@ -134,7 +134,7 @@ doesn't read it), HWID 0xBE, our build date. The MCU part is `.#mcu-dmb` under B
 version (`ZD1L_v2-04-35.dmb`, 2.04.35, release 20435), as the telnet-hook `.fw` the ZD1L's BL2 burned. It goes in
 through BL2's web updater from key-hold, with the expert confirm (`docs/module/boot-chain.md`, "The ZD1L BL2": BL2
 sends the MCU part first and needs the MCU's bootloader for it): `python3 tools/zeppelin bl2web IP zd1l.fw --yes`; the
-way back is the same with `zd1lv20435.fw`. In the emulator, the same file with `.#mcu-emu-dmb`, cut by `bwfw.py` and booted on
+way back is the same with `blobs/zd1l/zd1lv20435.fw`. In the emulator, the same file with `.#mcu-emu-dmb`, cut by `bwfw.py` and booted on
 board variant 2, runs: no slot, every service up, the MCU link ready, 13.5 MB of 28.4 MB free with the receivers
 running (the root holds ~10 MB of RAM) [EMU 2026-11-17: `zemu run DIR/module.bcd --nand --mcu DIR/mcu_flash.bin
 --renode 'zd1:board Adc "2:0x300"'`]. Not yet on a ZD1L.
@@ -146,7 +146,7 @@ heap-base literal moves (0x8002ae28 -> 0x8002ae24, the -4 shift), which `patch()
 KnOS shell on telnet (`sds://>`) in the emulator, a stock module image beside the patched MCU [EMU 2026-11-08, AUX
 boot]. **Delivery is proven on a real ZD1L** [HW 2026-11-16]: an owner uploaded the repacked `.fw` to BL2's web
 updater (key-hold → BL2 on Ethernet), BL2 burned both parts, and after the reset telnet answered on port 23 — then
-the shell dumped the unit's BL2 (`blobs/module/bl2-zd1l.bin`). So BL2's SPI XModem is the ZD1L's MCU-flash route;
+the shell dumped the unit's BL2 (`blobs/zd1l/module/bl2.bin`). So BL2's SPI XModem is the ZD1L's MCU-flash route;
 USB DFU is not needed for it.
 
 Other ways a `.fw` might get in, from the module app's strings [RE, untried]: its own online check (`GetLatestFwUrl`,

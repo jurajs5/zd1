@@ -16,7 +16,7 @@ it. Whether it has any other boot source (UART, USB) with a blank NAND is unknow
 
 ## BL1 (block 0)
 - Encrypted in NAND (entropy 7.99, starts `FF FF FF E6`); identical between our unit and the archive.org unit.
-  `blobs/module/bl1.enc` as stored, `blobs/module/bl1.plain` decrypted (captured from SRAM on the unit,
+  `blobs/zd1/module/bl1.enc` as stored, `blobs/zd1/module/bl1.plain` decrypted (captured from SRAM on the unit,
   `re/netmodule/bl1/`). Build "Sep 30 2010 17:52:25". One data region is LZ/RLE-packed and unpacked at start-up;
   code runs in place.
 - Decision (main 0x40453C) [RE]:
@@ -49,10 +49,10 @@ it. Whether it has any other boot source (UART, USB) with a blank NAND is unknow
 | BLDb = 1 in PersParam | BL1 starts BL2 at every boot (BL2's menu "a) Set Start Mode") [RE, EMU] |
 
 ## BL2 (0xA0000), the updater
-`blobs/module/bl2.bin` (MetaInfo + boot header + stage 1 + stage 2 at 0x60008000, mostly Thumb-2; build 2010-09-27;
+`blobs/zd1/module/bl2.bin` (MetaInfo + boot header + stage 1 + stage 2 at 0x60008000, mostly Thumb-2; build 2010-09-27;
 the archive.org copy has bit rot, ours verifies) is our ZD1 unit's BL2, and everything below is about it unless
 marked otherwise. No update carries a BL2, so it is the factory's. A second BL2 is now in hand too — the Lightning
-model's, a later and larger build (`blobs/module/bl2-zd1l.bin`, "The ZD1L BL2" below); to pull one off a ZD1L or A7
+model's, a later and larger build (`blobs/zd1l/module/bl2.bin`, "The ZD1L BL2" below); to pull one off a ZD1L or A7
 yourself, put the telnet hook on its stock MCU and `fburn rd` the `0xA0000` partition (`stock-patch/README.md`,
 "Dumping BL2"). Our BL2 reports **0x11 = 0x2300** to the MCU, brings up KnOS, Ethernet, the SPI link and:
 - **Web updater** (GoAhead, port 80, no authentication) [HW]: `POST /goform/formPostHandler` multipart field
@@ -96,7 +96,7 @@ yourself, put the telnet hook on its stock MCU and `fburn rd` the `0xA0000` part
 - If PersParam is blank, BL2 rebuilds the defaults (BLDb, HWID 0xBD, HWVS, GUID 0, MAC0/MAC1 0, CnEA/U/S, BLDF)
   [RE, EMU].
 
-### The ZD1L BL2 (`blobs/module/bl2-zd1l.bin`)
+### The ZD1L BL2 (`blobs/zd1l/module/bl2.bin`)
 A real Lightning unit's BL2, contributed by a ZD1L owner: dumped over the stock-patch telnet hook (`fburn rd 0 0xA0000
 0x1A0000`), read-only [HW 2026-11-16]. Partition header: `partitionId 1`, date **`20121106102434`**, `imageLength`
 1,504,908, `partitionLength` **0x1A0000** (1,703,936; our ZD1's is 0x160000), `crc32 0x3BDC1766`; sha256
@@ -225,7 +225,7 @@ App stage-2 checksum: 16-bit LE words, a = b = 0xFFFF, folded every 360 words, r
 | 0xB0 | "DMP 3.x" |
 
 No signature. Tools: `python3 tools/zeppelin bcd` (parse, check, extract), `mkbcd` (a `.bcd` from its parts: B&W's
-preloader `blobs/module/preloader.bin` behind a boot header written here, a custom stage 2, a model's CnE and resource
+preloader `blobs/dm870/preloader.bin` behind a boot header written here, a custom stage 2, a model's CnE and resource
 containers, HWID and date; every header and checksum computed, sections padded to 4; rebuilds B&W's ZD1, ZD1L and A7
 images byte for byte from their own parts, `mkbcd --selftest`).
 

@@ -197,7 +197,7 @@ def payload(cfg, parts, initrd, out, cmdline_extra="", how="slots"):
 def wrap(payload_bin, out):
     """The payload wrapped like the stock app (stock preloader, CnE, resources) for the relay and BL2. The system
     isn't in it: `zd1 update` puts it into a slot (docs/module/updater.md)."""
-    stock = open(os.path.join(REPO, "blobs/module/app_DMP.bcd"), "rb").read()
+    stock = open(os.path.join(REPO, "blobs/zd1/module/app_DMP.bcd"), "rb").read()
     open(out, "wb").write(mkbcd.build(payload=open(payload_bin, "rb").read(), **mkbcd.template(stock)))
     log("  %s %d B" % (os.path.basename(out), os.path.getsize(out)))
 
@@ -206,11 +206,11 @@ def zd1l(payload_bin, out, built):
     """The payload as the Zeppelin Air with Lightning's .bcd (blobs/README.md): B&W's preloader, the ZD1L's factory
     CnE, its HWID (0xBE), our build date; the resources (the stock app's web UI) empty: its BL2 writes the partition
     empty (docs/module/boot-chain.md, "The ZD1L BL2")."""
-    blob = lambda name: open(os.path.join(REPO, "blobs/module", name), "rb").read()
+    blob = lambda name: open(os.path.join(REPO, "blobs", name), "rb").read()
     image = mkbcd.build(
-        stage1=blob("preloader.bin"),
+        stage1=blob("dm870/preloader.bin"),
         payload=open(payload_bin, "rb").read(),
-        cne=blob("zd1l/cne.bin"),
+        cne=blob("zd1l/module/cne.bin"),
         resources=[],
         hwid=0xBE,
         date="".join(c for c in built if c.isdigit()).ljust(14, "0"),

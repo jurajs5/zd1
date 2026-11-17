@@ -72,7 +72,7 @@ Framing both ways [RE `re/mcu/work/bco_link_notes.txt`]: `[SOH 0x01 = 128 B | ST
 [CRC16-CCITT]`; control `C` (0x43, CRC-mode start) / ACK 0x06 / NAK 0x15 / CAN 0x18 ×3 / EOT 0x04 (first NAKed, then
 ACKed); status on reg 0x29 by IRQ.
 
-- **BL2 side** [RE static strings, `blobs/module/bl2-zd1l.bin`]: the ZD1L's 2012 BL2 stages the MCU `.dmb` in
+- **BL2 side** [RE static strings, `blobs/zd1l/module/bl2.bin`]: the ZD1L's 2012 BL2 stages the MCU `.dmb` in
   `MemoryBlobFirmwareUpdateService`, brings up `AVRPlayerService` (the SPI transport to the AVR/MCU) and transmits it
   with `XModemOverSPI` in `RRegXModemTxMode`. Our 2010 BL2 has none of this (`docs/module/boot-chain.md`, "The ZD1L
   BL2").

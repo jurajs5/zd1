@@ -21,10 +21,10 @@ stdenvNoCC.mkDerivation {
     "tools/zeppelin/__init__.py"
     "tools/zeppelin/fw/bcd.py"
     "tools/zeppelin/fw/mkbcd.py"
-    "blobs/module/app_DMP.bcd"
-    "blobs/module/preloader.bin"
-    "blobs/module/zd1l"
-    "blobs/module/nokia-hd1"
+    "blobs/zd1/module/app_DMP.bcd"
+    "blobs/dm870/preloader.bin"
+    "blobs/zd1l/module/cne.bin"
+    "blobs/nokia-hd1"
   ];
   nativeBuildInputs = [
     python3

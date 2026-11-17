@@ -108,12 +108,12 @@ and what is known. What already works: `status.md`; checks that need a person at
 ## Other models
 - **The Zeppelin Air with Lightning** (`docs/mcu/stock-firmware.md`): our MCU firmware ignores the board variant, and
   BL2's SPI XModem (the relay, `zd1 xmodem`) takes our image whatever HWID the module has (`docs/module/boot-chain.md`)
-  [EMU]. Much is now answered on hardware (issue #1): its BL2 is in hand (`blobs/module/bl2-zd1l.bin`, 2012 MR5 build),
+  [EMU]. Much is now answered on hardware (issue #1): its BL2 is in hand (`blobs/zd1l/module/bl2.bin`, 2012 MR5 build),
   its web updater **takes the whole `.fw` and flashes both the module `.bcd` and the MCU `.dmb`** — the MCU part over
   SPI XModem (`docs/protocol/sequences.md`, "MCU (host) firmware over SPI") — and a ZD1L owner drove it end-to-end to
   install the telnet hook [HW 2026-11-16]. So **our firmware on a ZD1L can go in the same way**: `nix build .#zd1l-fw`
   (`docs/mcu/stock-firmware.md`, "Our firmware as a `.dmb`") from key-hold through BL2's expert confirm
-  (`docs/module/boot-chain.md`, "The ZD1L BL2"), no USB DFU, no stock-MCU mode (`bl2web IP zd1l.fw --yes`). The way back is the stock `zd1lv20435.fw` (HWID 0xBE). Still open: the ZD1L **MCU bootloader**
+  (`docs/module/boot-chain.md`, "The ZD1L BL2"), no USB DFU, no stock-MCU mode (`bl2web IP zd1l.fw --yes`). The way back is the stock `blobs/zd1l/zd1lv20435.fw` (HWID 0xBE). Still open: the ZD1L **MCU bootloader**
   (who initiates the SPI DFU, and whether USB DFU exists at all) — a read-only UC3 JTAG dump (TMS is TP88, the rest of
   TP88-91 inferred) or an MCU-flash-over-SPI read would show it; `zd1l.fw` installed on a real ZD1L, and what of our MCU firmware works
   on its board (variant 2: the Lightning dock and the USB mux are the ZD1's code); and an owner pursuing a module-OS-on-stock-MCU route (issue #1).
