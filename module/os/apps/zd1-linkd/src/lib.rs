@@ -83,6 +83,22 @@ fn mtime(p: &str) -> Option<std::time::SystemTime> {
     std::fs::metadata(p).and_then(|m| m.modified()).ok()
 }
 
+/// A JSON string literal (quotes included), for the status line.
+fn json_str(s: &str) -> String {
+    let mut o = String::with_capacity(s.len() + 2);
+    o.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => o.push_str("\\\""),
+            '\\' => o.push_str("\\\\"),
+            c if (c as u32) < 0x20 => o.push(' '),
+            c => o.push(c),
+        }
+    }
+    o.push('"');
+    o
+}
+
 fn cstr(s: &str) -> Vec<u8> {
     let mut v = s.as_bytes().to_vec();
     v.push(0);
@@ -582,9 +598,14 @@ impl App {
         let (front, fstate) = self.front;
         let playing = fstate == player::PLAYING;
         let input = self.speaker.is_some_and(|sp| sp.input);
+        let front_name = player::source_name(front).unwrap_or("");
+        let (ssid, signal) = {
+            let w = self.wifi.lock().unwrap();
+            (json_str(&w.ssid), w.signal)
+        };
         format!(
-            "status {{\"volume\":{vol},\"source\":\"{source}\",\"front\":{front},\"playing\":{playing},\"input\":{input},\"eth\":\"{}\",\"wifi\":\"{}\"}}\n",
-            self.net.eth, self.net.wifi
+            "status {{\"volume\":{vol},\"source\":\"{source}\",\"front\":{front},\"front_name\":\"{front_name}\",\"playing\":{playing},\"input\":{input},\"eth\":\"{}\",\"eth_link\":{},\"wifi\":\"{}\",\"ssid\":{ssid},\"signal\":{signal}}}\n",
+            self.net.eth, self.net.eth_link, self.net.wifi
         )
     }
 

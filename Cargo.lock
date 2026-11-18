@@ -4284,14 +4284,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zd1-webd"
-version = "0.1.0"
-dependencies = [
- "zd1-settings",
- "zd1-sys",
-]
-
-[[package]]
 name = "zd1-vorbis"
 version = "0.1.0"
 dependencies = [
@@ -4320,6 +4312,16 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "zd1-host",
+]
+
+[[package]]
+name = "zd1-webd"
+version = "0.1.0"
+dependencies = [
+ "pbkdf2",
+ "sha1",
+ "zd1-settings",
+ "zd1-sys",
 ]
 
 [[package]]

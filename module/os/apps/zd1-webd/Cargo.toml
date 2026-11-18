@@ -8,3 +8,5 @@ description = "The speaker's web control & settings interface: an HTTP server an
 [dependencies]
 zd1-sys.workspace = true
 zd1-settings.workspace = true
+sha1 = { version = "0.10", default-features = false }
+pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }

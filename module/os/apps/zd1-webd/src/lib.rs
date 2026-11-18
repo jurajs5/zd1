@@ -15,9 +15,12 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::os::unix::net::UnixStream;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 const PAGE: &str = include_str!("index.html");
 const LINK: &str = "/run/zd1link";
+/// A restart asked for: done once the answer has gone out (busybox `reboot` signals init, which stops everything).
+static RESTART: AtomicBool = AtomicBool::new(false);
 
 pub fn main() {
     let l = TcpListener::bind(("0.0.0.0", 80u16))
@@ -65,7 +68,11 @@ fn serve(mut s: TcpStream) -> std::io::Result<()> {
         bytes.len()
     )?;
     s.write_all(bytes)?;
-    s.flush()
+    s.flush()?;
+    if RESTART.swap(false, Ordering::SeqCst) {
+        let _ = std::process::Command::new("reboot").spawn();
+    }
+    Ok(())
 }
 
 fn route(method: &str, path: &str, body: &str) -> (&'static str, &'static str, String) {
@@ -87,6 +94,13 @@ fn route(method: &str, path: &str, body: &str) -> (&'static str, &'static str, S
         }
         ("POST", "/api/set") => outcome(set_value(form(body, "key"), form(body, "value"))),
         ("POST", "/api/action") => outcome(do_action(form(body, "key"), form(body, "value"))),
+        ("POST", "/api/wifi/add") => outcome(wifi_add(form(body, "ssid"), form(body, "passphrase"))),
+        ("POST", "/api/wifi/forget") => outcome(do_action(Some("wifi.forget".into()), form(body, "ssid"))),
+        ("POST", "/api/reset") => outcome(do_reset(form(body, "what"))),
+        ("POST", "/api/restart") => {
+            RESTART.store(true, Ordering::SeqCst);
+            ok()
+        }
         _ => ("404 Not Found", "text/plain; charset=utf-8", "not found".into()),
     }
 }
@@ -102,6 +116,40 @@ fn do_action(key: Option<String>, value: Option<String>) -> Result<(), String> {
     let key = key.ok_or("no key")?;
     zd1_settings::act(&key, value.as_deref().unwrap_or(""))?;
     zd1_settings::apply(&key);
+    Ok(())
+}
+
+/// Join a network: the WPA2 key is derived here from the passphrase (the settings keep only the key, as `zd1 wifi`
+/// does on the host); no passphrase: an open network. Put first, and init restarts the Wi-Fi.
+fn wifi_add(ssid: Option<String>, passphrase: Option<String>) -> Result<(), String> {
+    let ssid = ssid.filter(|s| !s.is_empty()).ok_or("no network name")?;
+    if ssid.len() > 32 {
+        return Err("a network name is at most 32 bytes".into());
+    }
+    let value = match passphrase.filter(|p| !p.is_empty()) {
+        Some(p) => format!("wpa2 {} {ssid}", psk(&ssid, &p)?),
+        None => format!("open {ssid}"),
+    };
+    zd1_settings::act("wifi.add", &value)?;
+    zd1_settings::apply("wifi.add");
+    Ok(())
+}
+
+/// The key wpa_supplicant derives (wpa_passphrase): PBKDF2-SHA1(passphrase, SSID, 4096), 32 bytes, as hex.
+fn psk(ssid: &str, passphrase: &str) -> Result<String, String> {
+    if !(8..=63).contains(&passphrase.len()) {
+        return Err("a WPA2 passphrase has 8 to 63 characters".into());
+    }
+    let mut k = [0u8; 32];
+    pbkdf2::pbkdf2_hmac::<sha1::Sha1>(passphrase.as_bytes(), ssid.as_bytes(), 4096, &mut k);
+    Ok(k.iter().map(|b| format!("{b:02x}")).collect())
+}
+
+/// Back to the defaults: `settings` (the networks and pairings stay) or `all` (those too).
+fn do_reset(what: Option<String>) -> Result<(), String> {
+    let what = if what.as_deref() == Some("all") { "all" } else { "settings" };
+    zd1_settings::act("reset", what)?;
+    zd1_settings::apply("reset");
     Ok(())
 }
 

@@ -26,6 +26,26 @@ switching misbehaved afterwards, so it was dropped and is not part of 0.1.)
   shows it holds the mute for 500 ms and waits for the new input to report locked; that is the
   fix slated for 0.2.
 
+## 0.4 — the speaker's control panel (web), on port 80
+
+A page served by the speaker itself (`zd1-webd`, `module/os/apps/zd1-webd`), reachable by IP
+(`http://<speaker>/`), plain HTTP and no login, so for a trusted home network only. A Wi-Fi
+passphrase typed there crosses the LAN unencrypted (the speaker stores only the derived key).
+
+- **Control:** nothing-playing state (no made-up track), the receiver in front and its play state,
+  volume (live), receivers listed with their state (AirPlay, Spotify Connect, Snapcast); a tap
+  asks the speaker to switch to that receiver. The page polls every 2 s, so it follows changes made on
+  the speaker or in an app. A thin light-show strip animates while something plays (a preview only).
+- **Settings:** name; Ethernet and Wi-Fi each with their address shown (header: both, with icons),
+  DHCP (the address is read-only) or a static IP (address/prefix, gateway, DNS, then Save); known
+  Wi-Fi networks with Forget; add a network (the WPA2 key is derived on the speaker, PBKDF2-SHA1);
+  receivers on/off — **Spotify Connect can be switched off here**; firmware; Restart; Reset settings
+  (keeps saved networks and AirPlay pairings). Language (English, Čeština) and theme (system, light, dark).
+- Not in it, because the MCU would have to support them first and nothing in the panel is a mock any more:
+  bass, LED colours, the light show on/off, transport keys, USB/AUX as inputs (the module only knows its receivers).
+- `zd1-linkd` answers a new `status` line (volume, receiver in front, play state, IPs, link, Wi-Fi network and signal).
+- Includes 0.3.1 (AirPlay no longer stays silent after a failed Spotify start).
+
 ## 0.3.1 — AirPlay's play in the same session also drops a stale yield
 
 0.3's fix only ran on a fresh pick (`intent`). Tested on the unit: after a Spotify pick (refused key)

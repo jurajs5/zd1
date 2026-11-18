@@ -155,357 +155,246 @@ button:focus-visible, .sw:focus-visible, .src-row:focus-visible, input:focus-vis
 @media (min-width: 1180px) { .wrap { max-width: 1040px; } }
 </style>
 
+<style>
+/* 0.4 additions: IP chips, buttons, the thin light-show strip */
+.ips { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; }
+.ipchip { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--fg); font-variant-numeric: tabular-nums; }
+.ipchip svg { width: 17px; height: 17px; flex: none; }
+.ipchip.off { color: var(--faint); }
+.strip { height: 10px; border-radius: 99px; border: 0; background: var(--surface-2); transition: background .35s; }
+.strip canvas, .strip .cap { display: none; }
+.btn { font: inherit; font-size: 14px; font-weight: 500; color: var(--fg); background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 14px; cursor: pointer; }
+.btn.danger { color: #ff6b6b; border-color: rgba(255, 107, 107, .45); }
+.btn:disabled { opacity: .5; cursor: default; }
+.inp:disabled { opacity: .6; }
+.net-form { display: grid; gap: 10px; padding: 0 16px 16px; }
+.net-form .inp { width: 100%; text-align: left; }
+.empty { padding: 20px 16px; color: var(--muted); font-size: 14px; }
+.np-idle { padding: 6px 2px 2px; }
+.np-idle .np-title { white-space: normal; margin-top: 0; }
+.np-idle .np-sub { white-space: normal; }
+.src-row.dim { opacity: .5; cursor: default; }
+.src-row[aria-current="true"] .nm::after { content: ""; }
+#toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 9px 16px; border-radius: 99px; font-size: 13.5px; opacity: 0; pointer-events: none; transition: opacity .25s; max-width: 90vw; z-index: 20; }
+#toast.on { opacity: 1; }
+</style>
+
 <div class="wrap">
   <header>
     <div class="brand">
       <span class="led" id="hled"></span>
-      <h1>Zeppelin&nbsp;Air</h1>
+      <h1 id="title">Zeppelin&nbsp;Air</h1>
       <span class="spacer"></span>
-      <span class="status"><span class="dot"></span>192.168.3.237</span>
-      <button class="icon-btn" id="themebtn" aria-label="Theme" onclick="cycleTheme()"></button>
+      <button class="icon-btn" id="themebtn" aria-label="Theme"></button>
     </div>
+    <div class="ips" id="ips"></div>
     <div class="seg tabs" role="tablist">
-      <button role="tab" aria-selected="true" id="tab-control" data-i18n="control" onclick="showTab('control')">Ovládání</button>
-      <button role="tab" aria-selected="false" id="tab-settings" data-i18n="settings" onclick="showTab('settings')">Nastavení</button>
+      <button role="tab" id="tab-control" aria-selected="true" data-tab="control"></button>
+      <button role="tab" id="tab-settings" aria-selected="false" data-tab="settings"></button>
     </div>
   </header>
 
-  <!-- CONTROL -->
   <div id="control">
-    <section class="c-show">
-      <div class="strip"><canvas id="showcanvas" width="900" height="200"></canvas><span class="cap" data-i18n="lightShow">Světelná show</span></div>
-    </section>
-    <section class="c-now">
-      <div class="now">
-        <div class="np-main">
-          <div class="art" id="np-art"></div>
-          <div class="np-text">
-            <span class="np-src"><span class="pin" id="np-pin"></span><span id="np-source"></span></span>
-            <p class="np-title" id="np-title">Nightcall</p>
-            <p class="np-sub" id="np-sub">Kavinsky — Outrun</p>
-          </div>
-        </div>
-        <div class="transport">
-          <button aria-label="Prev" onclick="skip(-1)"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 6v12H5V6h2zm12 0v12l-9-6 9-6z"/></svg></button>
-          <button class="play" id="playbtn" aria-label="Play/Pause" onclick="togglePlay()"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5h3v14H8V5zm5 0h3v14h-3V5z"/></svg></button>
-          <button aria-label="Next" onclick="skip(1)"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 6v12h2V6h-2zM5 6v12l9-6-9-6z"/></svg></button>
-        </div>
-      </div>
-    </section>
-
+    <section class="c-show"><div class="strip" id="strip" aria-hidden="true"></div></section>
+    <section class="c-now"><div class="now" id="now"></div></section>
     <section class="c-vol">
       <div class="card volcard">
         <div class="vol-top">
-          <span class="lbl"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 9v6h4l5 5V4L8 9H4z"/><path d="M16 8.5a4 4 0 010 7" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><span data-i18n="volume">Hlasitost</span></span>
-          <span class="pct"><span id="volout">42</span>%</span>
+          <span class="lbl"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 9v6h4l5 5V4L8 9H4z"/><path d="M16 8.5a4 4 0 010 7" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><span id="t-volume"></span></span>
+          <span class="pct"><span id="volout">0</span>%</span>
         </div>
         <div class="vol-ctl">
-          <button class="stepbtn" aria-label="−" onclick="nudge(-5)">−</button>
-          <svg class="small" viewBox="0 0 24 24" fill="currentColor"><path d="M4 9v6h4l5 5V4L8 9H4z"/></svg>
-          <input class="lvl" type="range" id="vol" min="0" max="100" value="42" aria-label="Volume" oninput="onVol(this.value)">
-          <svg class="big" viewBox="0 0 24 24" fill="currentColor"><path d="M4 9v6h4l5 5V4L8 9H4z"/><path d="M15 8a5 5 0 010 8M18 5.5a9 9 0 010 13" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
-          <button class="stepbtn" aria-label="+" onclick="nudge(5)">+</button>
+          <button class="stepbtn" id="vminus" aria-label="-">−</button>
+          <input class="lvl" type="range" id="vol" min="0" max="100" value="0" aria-label="Volume">
+          <button class="stepbtn" id="vplus" aria-label="+">+</button>
         </div>
       </div>
     </section>
-
     <section class="c-sources">
-      <p class="eyebrow" data-i18n="sources">Zdroje</p>
-      <div class="card list" id="sources"></div>
+      <p class="eyebrow" id="t-receivers"></p>
+      <div class="card list" id="receivers"></div>
     </section>
   </div>
 
-  <!-- SETTINGS -->
-  <div id="settings" hidden>
-    <section>
-      <p class="eyebrow" data-i18n="appearance">Vzhled</p>
-      <div class="card pad">
-        <div class="seg" id="theme-seg" role="group">
-          <button onclick="setTheme('system')" data-t="system" data-i18n="system">Systém</button>
-          <button onclick="setTheme('light')" data-t="light" data-i18n="themeLight">Světlý</button>
-          <button onclick="setTheme('dark')" data-t="dark" data-i18n="themeDark">Tmavý</button>
-        </div>
-      </div>
-    </section>
-
-    <section>
-      <p class="eyebrow" data-i18n="language">Jazyk</p>
-      <div class="card set">
-        <div class="set-row">
-          <div class="k" data-i18n="language">Jazyk</div>
-          <div class="v"><select class="inp" id="lang-sel" onchange="setLang(this.value)"></select></div>
-        </div>
-      </div>
-    </section>
-
-    <section>
-      <p class="eyebrow" data-i18n="light">Světlo</p>
-      <div class="card set">
-        <div class="set-row"><div><div class="k" data-i18n="lightShow">Světelná show</div><div class="sub" data-i18n="lightShowSub">Dioda reaguje na hudbu</div></div><div class="v"><button class="sw" id="showsw" aria-checked="true" onclick="tog(this); toggleShow()"></button></div></div>
-      </div>
-      <p class="eyebrow" style="margin-top:18px" data-i18n="inputColors">Barvy vstupů</p>
-      <div class="card swatches" id="swatches"></div>
-    </section>
-
-    <section>
-      <p class="eyebrow" data-i18n="general">Obecné</p>
-      <div class="card set">
-        <div class="set-row">
-          <div><div class="k" data-i18n="name">Název</div><div class="sub" data-i18n="nameSub">Jak se repro hlásí na síti</div></div>
-          <div class="v"><input class="inp name" id="devname" value="Zeppelin Air"></div>
-        </div>
-        <div class="set-row"><div><div class="k" data-i18n="model">Model</div></div><div class="v">Zeppelin Air · Lightning</div></div>
-      </div>
-    </section>
-
-    <section>
-      <p class="eyebrow" data-i18n="network">Síť</p>
-
-      <p class="sub" style="font-size:12.5px;color:var(--muted);margin:0 0 8px 3px"><strong data-i18n="ethernet">Ethernet</strong></p>
-      <div class="card set">
-        <div class="set-row"><div><div class="k" data-i18n="ethernet">Ethernet</div><div class="sub"><span data-i18n="cableConnected">Připojeno kabelem</span> · 192.168.3.237</div></div><div class="v"><span class="pill on" data-i18n="active">Aktivní</span></div></div>
-        <div class="set-row"><div><div class="k" data-i18n="ipAddress">IP adresa</div></div>
-          <div class="v"><div class="seg mini"><button data-i18n="dhcp" data-set-key="eth.mode" data-set-val="dhcp" aria-selected="true" onclick="ipMode('eth','dhcp')">DHCP</button><button data-i18n="staticIp" data-set-key="eth.mode" data-set-val="static" aria-selected="false" onclick="ipMode('eth','static')">Pevná IP</button></div></div>
-        </div>
-        <div class="static-ip" id="eth-static" hidden>
-          <div class="full"><label data-i18n="ip">IP adresa</label><input class="inp ip" value="192.168.3.50"></div>
-          <div><label data-i18n="mask">Maska</label><input class="inp ip" value="255.255.255.0"></div>
-          <div><label data-i18n="gateway">Brána</label><input class="inp ip" value="192.168.3.1"></div>
-          <div class="full"><label data-i18n="dns">DNS</label><input class="inp ip" value="192.168.3.1"></div>
-        </div>
-      </div>
-
-      <p class="sub" style="font-size:12.5px;color:var(--muted);margin:16px 0 8px 3px"><strong>Wi-Fi</strong></p>
-      <div class="card set">
-        <div class="set-row">
-          <div><div class="k">Domácí síť</div><div class="sub"><span data-i18n="connected">Připojeno</span> · −48 dBm</div></div>
-          <div class="v"><span class="wifi-signal"><i style="height:5px"></i><i style="height:8px"></i><i style="height:11px"></i><i style="height:13px;background:var(--fg)"></i></span></div>
-        </div>
-        <div class="set-row"><div><div class="k">Garáž 5G</div><div class="sub" data-i18n="saved">Uložená</div></div><div class="v"><span class="pill" data-i18n="forget">Zapomenout</span></div></div>
-        <div class="set-row"><div><div class="k" data-i18n="addNetwork">Přidat síť…</div></div><div class="v"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></div></div>
-        <div class="set-row"><div><div class="k" data-i18n="ipAddress">IP adresa</div></div>
-          <div class="v"><div class="seg mini"><button data-i18n="dhcp" data-set-key="wifi.mode" data-set-val="dhcp" aria-selected="true" onclick="ipMode('wifi','dhcp')">DHCP</button><button data-i18n="staticIp" data-set-key="wifi.mode" data-set-val="static" aria-selected="false" onclick="ipMode('wifi','static')">Pevná IP</button></div></div>
-        </div>
-        <div class="static-ip" id="wifi-static" hidden>
-          <div class="full"><label data-i18n="ip">IP adresa</label><input class="inp ip" value="192.168.3.51"></div>
-          <div><label data-i18n="mask">Maska</label><input class="inp ip" value="255.255.255.0"></div>
-          <div><label data-i18n="gateway">Brána</label><input class="inp ip" value="192.168.3.1"></div>
-          <div class="full"><label data-i18n="dns">DNS</label><input class="inp ip" value="192.168.3.1"></div>
-        </div>
-      </div>
-    </section>
-
-    <section>
-      <p class="eyebrow" data-i18n="receivers">Přijímače</p>
-      <div class="card set">
-        <div class="set-row"><div><div class="k">AirPlay 2</div><div class="sub" data-i18n="appleDevices">Apple zařízení</div></div><div class="v"><button class="sw" data-set-key="airplay" aria-checked="true" onclick="tog(this)"></button></div></div>
-        <div class="set-row"><div><div class="k">Spotify Connect</div><div class="sub" data-i18n="spotifyApp">Spotify aplikace</div></div><div class="v"><button class="sw" data-set-key="spotify" aria-checked="true" onclick="tog(this)"></button></div></div>
-        <div class="set-row"><div><div class="k">Snapcast</div><div class="sub" data-i18n="multiroomSync">Multiroom synchronně</div></div><div class="v"><button class="sw" data-set-key="snapcast" aria-checked="false" onclick="tog(this)"></button></div></div>
-      </div>
-    </section>
-
-    <section>
-      <p class="eyebrow" data-i18n="sound">Zvuk</p>
-      <div class="card set">
-        <div class="set-row col">
-          <div style="display:flex;justify-content:space-between;align-items:center"><div class="k" data-i18n="bass">Basy</div><output id="bassout" style="color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums">55</output></div>
-          <input class="lvl thin" type="range" min="0" max="100" value="55" style="--p:55%;margin-top:12px" aria-label="Bass" oninput="this.style.setProperty('--p',this.value+'%');document.getElementById('bassout').value=this.value">
-        </div>
-      </div>
-    </section>
-
-    <section>
-      <p class="eyebrow" data-i18n="systemSec">Systém</p>
-      <div class="card set">
-        <div class="set-row"><div><div class="k">Firmware</div><div class="sub">Modul 105.9112 · MCU 2.04.35</div></div><div class="v"><span class="pill on" data-i18n="upToDate">Aktuální</span></div></div>
-        <div class="set-row"><div><div class="k" data-i18n="restart">Restartovat repro</div></div><div class="v"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></div></div>
-        <div class="set-row"><div><div class="k" data-i18n="factory">Tovární nastavení</div><div class="sub" data-i18n="factorySub">Smaže sítě a nastavení</div></div><div class="v"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></div></div>
-      </div>
-    </section>
-  </div>
-
+  <div id="settings" hidden></div>
   <p class="foot">Zeppelin Air · ZD1L</p>
 </div>
+<div id="toast" role="status"></div>
 
 <script>
-  const T = {
-    cs: { control:"Ovládání", settings:"Nastavení", appearance:"Vzhled", system:"Systém", themeLight:"Světlý", themeDark:"Tmavý",
-      language:"Jazyk", light:"Světlo", lightShow:"Světelná show", lightShowSub:"Dioda reaguje na hudbu",
-      livePreview:"Živý náhled — reaguje na hudbu", onSpeaker:"jako na repráku", inputColors:"Barvy vstupů",
-      general:"Obecné", name:"Název", nameSub:"Jak se repro hlásí na síti", model:"Model", network:"Síť",
-      ethernet:"Ethernet", cableConnected:"Připojeno kabelem", active:"Aktivní", ipAddress:"IP adresa", dhcp:"DHCP", staticIp:"Pevná IP",
-      ip:"IP adresa", mask:"Maska", gateway:"Brána", dns:"DNS", connected:"Připojeno",
-      saved:"Uložená", forget:"Zapomenout", addNetwork:"Přidat síť…",
-      receivers:"Přijímače", appleDevices:"Apple zařízení", spotifyApp:"Spotify aplikace", multiroomSync:"Multiroom synchronně",
-      sound:"Zvuk", bass:"Basy", volume:"Hlasitost", systemSec:"Systém", upToDate:"Aktuální", restart:"Restartovat repro", factory:"Tovární nastavení", factorySub:"Smaže sítě a nastavení",
-      sources:"Zdroje", playing:"přehrává", paused:"pauza",
-      st:{ airplay:"Přehrává · MacBook Pro", spotify:"Připraveno", usb:"Připojeno", aux:"Bez signálu", snap:"Multiroom" },
-      srcName:{ aux:"Optický / AUX" } },
-    en: { control:"Control", settings:"Settings", appearance:"Appearance", system:"System", themeLight:"Light", themeDark:"Dark",
-      language:"Language", light:"Light", lightShow:"Light show", lightShowSub:"The LED reacts to the music",
-      livePreview:"Live preview — reacts to the music", onSpeaker:"as on the speaker", inputColors:"Input colours",
-      general:"General", name:"Name", nameSub:"How the speaker appears on the network", model:"Model", network:"Network",
-      ethernet:"Ethernet", cableConnected:"Cable connected", active:"Active", ipAddress:"IP address", dhcp:"DHCP", staticIp:"Static IP",
-      ip:"IP address", mask:"Mask", gateway:"Gateway", dns:"DNS", connected:"Connected",
-      saved:"Saved", forget:"Forget", addNetwork:"Add network…",
-      receivers:"Receivers", appleDevices:"Apple devices", spotifyApp:"Spotify app", multiroomSync:"Multiroom, in sync",
-      sound:"Sound", bass:"Bass", volume:"Volume", systemSec:"System", upToDate:"Up to date", restart:"Restart speaker", factory:"Factory reset", factorySub:"Erases networks and settings",
-      sources:"Sources", playing:"playing", paused:"paused",
-      st:{ airplay:"Playing · MacBook Pro", spotify:"Ready", usb:"Connected", aux:"No signal", snap:"Multiroom" },
-      srcName:{ aux:"Optical / AUX" } },
+"use strict";
+const T = {
+  en: { control:"Control", settings:"Settings", idle:"Nothing is playing", idleSub:"Choose Zeppelin Air as the output in AirPlay on your phone or computer.",
+    playing:"Playing", ready:"Ready", off:"Off", volume:"Volume", receivers:"Receivers", appearance:"Appearance", system:"System", light:"Light", dark:"Dark",
+    language:"Language", general:"General", name:"Name", nameSub:"How the speaker appears on the network", network:"Network", ethernet:"Ethernet", wifi:"Wi-Fi",
+    connectedTo:"Connected to", notConnected:"Not connected", noCable:"No cable", ip:"Address", mask:"Address / prefix", gateway:"Gateway", dns:"DNS",
+    staticIp:"Static IP", fromDhcp:"from DHCP", save:"Save", known:"Known networks", forget:"Forget", addNet:"Add a network", ssid:"Network name",
+    pass:"Passphrase (empty: open network)", add:"Add", airplayS:"Apple devices", spotifyS:"Spotify app", snapS:"Multiroom, in sync", firmware:"Firmware",
+    restart:"Restart", restartAsk:"Tap again to restart", factory:"Reset settings", factoryAsk:"Tap again to reset", factorySub:"Keeps saved networks and AirPlay pairings",
+    saved:"Saved", failed:"Failed", offline:"The speaker does not answer", restarting:"Restarting…", picked:"Switched", signal:"signal", sys:"System", themeSystem:"System" },
+  cs: { control:"Ovládání", settings:"Nastavení", idle:"Nic nehraje", idleSub:"Na telefonu nebo počítači vyber Zeppelin Air jako výstup v AirPlay.",
+    playing:"Hraje", ready:"Připraveno", off:"Vypnuto", volume:"Hlasitost", receivers:"Přijímače", appearance:"Vzhled", system:"Systém", light:"Světlý", dark:"Tmavý",
+    language:"Jazyk", general:"Obecné", name:"Název", nameSub:"Jak se repro hlásí na síti", network:"Síť", ethernet:"Ethernet", wifi:"Wi-Fi",
+    connectedTo:"Připojeno k", notConnected:"Nepřipojeno", noCable:"Bez kabelu", ip:"Adresa", mask:"Adresa / prefix", gateway:"Brána", dns:"DNS",
+    staticIp:"Pevná IP", fromDhcp:"z DHCP", save:"Uložit", known:"Známé sítě", forget:"Zapomenout", addNet:"Přidat síť", ssid:"Název sítě",
+    pass:"Heslo (prázdné: otevřená síť)", add:"Přidat", airplayS:"Zařízení Apple", spotifyS:"Aplikace Spotify", snapS:"Multiroom, synchronně", firmware:"Firmware",
+    restart:"Restartovat", restartAsk:"Klepni znovu pro restart", factory:"Obnovit nastavení", factoryAsk:"Klepni znovu pro obnovení", factorySub:"Uložené sítě a spárování AirPlay zůstanou",
+    saved:"Uloženo", failed:"Nepovedlo se", offline:"Repro neodpovídá", restarting:"Restartuje se…", picked:"Přepnuto", signal:"signál", sys:"Systém", themeSystem:"Systém" }
+};
+const LANGS = [["en","English"],["cs","Čeština"]];
+const RECV = [{id:"airplay",name:"AirPlay 2",sub:"airplayS"},{id:"spotify",name:"Spotify Connect",sub:"spotifyS"},{id:"snapcast",name:"Snapcast",sub:"snapS"}];
+const ETH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="12" rx="2"/><path d="M8 17v2M12 17v2M16 17v2M8 9v4M12 9v4M16 9v4"/></svg>';
+const WIFI = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 9a14 14 0 0119 0M5.5 12.5a9.5 9.5 0 0113 0M8.6 16a5 5 0 016.8 0"/><circle cx="12" cy="19.2" r="1" fill="currentColor"/></svg>';
+const THEME_ICONS = {
+  system:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 010 16" fill="currentColor" stroke="none"/></svg>',
+  light:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>',
+  dark:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/></svg>' };
+const $ = id => document.getElementById(id);
+let lang = "en", theme = "system", st = {}, cfg = {}, nets = [], pendingStatic = {eth:false, wifi:false}, volT = 0, volTm, askT = {}, offlineShown = false, hue = 200;
+const t = k => (T[lang] && T[lang][k]) || T.en[k] || k;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+async function api(path, data) {
+  const o = data ? { method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"}, body:new URLSearchParams(data) } : { cache:"no-store" };
+  const r = await fetch(path, o), j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.status);
+  return j;
+}
+let toastTm;
+function toast(m, bad) { const e = $("toast"); e.textContent = m; e.style.background = bad ? "#c0392b" : ""; e.style.color = bad ? "#fff" : ""; e.classList.add("on"); clearTimeout(toastTm); toastTm = setTimeout(() => e.classList.remove("on"), 2400); }
+async function save(key, value, quiet) { try { await api("/api/set", {key, value}); if (!quiet) toast(t("saved")); return true; } catch (e) { toast(t("failed") + ": " + e.message, true); return false; } }
+
+/* ---- theme and language ---- */
+function applyTheme(x) { theme = x; const r = document.documentElement; if (x === "system") r.removeAttribute("data-theme"); else r.setAttribute("data-theme", x); try { localStorage.setItem("zair-theme", x); } catch (e) {} $("themebtn").innerHTML = THEME_ICONS[x]; }
+function applyLang(x) { lang = x; try { localStorage.setItem("zair-lang", x); } catch (e) {} document.documentElement.lang = x; renderAll(true); }
+
+/* ---- header and control ---- */
+function renderHeader() {
+  const L = st.live || {};
+  $("title").textContent = st.name || "Zeppelin Air";
+  document.title = st.name || "Zeppelin Air";
+  const chip = (icon, ip, label) => `<span class="ipchip ${ip ? "" : "off"}">${icon}<span>${esc(ip || label)}</span></span>`;
+  $("ips").innerHTML = chip(ETH, L.eth, t("noCable")) + chip(WIFI, L.wifi, t("notConnected"));
+  $("tab-control").textContent = t("control"); $("tab-settings").textContent = t("settings");
+  $("t-volume").textContent = t("volume"); $("t-receivers").textContent = t("receivers");
+}
+function renderControl() {
+  const L = st.live || {}, playing = !!L.playing && L.front_name, r = RECV.find(x => x.id === L.front_name);
+  $("now").innerHTML = playing
+    ? `<span class="np-src"><span class="pin"></span><span>${esc(r ? r.name : L.front_name)} · ${t("playing")}</span></span><p class="np-title">${esc(r ? r.name : L.front_name)}</p>`
+    : `<div class="np-idle"><p class="np-title">${t("idle")}</p><p class="np-sub">${t("idleSub")}</p></div>`;
+  $("receivers").innerHTML = RECV.map(x => {
+    const on = cfg[x.id] !== "off", active = playing && L.front_name === x.id;
+    return `<button class="src-row ${on ? "" : "dim"}" aria-current="${active}" data-pick="${x.id}" ${on ? "" : "disabled"}>
+      <span class="glyph">${x.id[0].toUpperCase()}</span><span><span class="nm">${x.name}</span><div class="st">${active ? t("playing") : on ? t("ready") : t("off")} · ${t(x.sub)}</div></span>
+      <svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5L20 6"/></svg></button>`;
+  }).join("");
+  if (Date.now() - volT > 2000 && typeof L.volume === "number" && L.volume > 0) setVol(L.volume);
+}
+function setVol(v) { $("vol").value = v; $("volout").textContent = v; $("vol").style.setProperty("--p", v + "%"); }
+function sendVol(v) { volT = Date.now(); setVol(v); clearTimeout(volTm); volTm = setTimeout(() => api("/api/volume", {value:v}).catch(() => {}), 120); }
+function showTick() {
+  const on = st.live && st.live.playing;
+  $("strip").style.background = on ? `hsl(${(hue = (hue + 60 + Math.random() * 160) % 360)} 90% ${42 + Math.random() * 22}%)` : "";
+}
+
+/* ---- settings ---- */
+function ipBlock(k) {
+  const L = st.live || {}, mode = cfg[k + ".mode"] || "dhcp", stat = mode === "static" || pendingStatic[k], live = k === "eth" ? L.eth : L.wifi;
+  const val = key => esc(stat ? (cfg[k + "." + key] || "") : "");
+  return `<div class="set-row"><div><div class="k">${t("ip")}</div></div><div class="v"><div class="seg mini">
+      <button aria-selected="${!stat}" data-mode="${k}:dhcp">DHCP</button><button aria-selected="${stat}" data-mode="${k}:static">${t("staticIp")}</button></div></div></div>
+    <div class="static-ip">
+      <div class="full"><label>${t("mask")}</label><input class="inp ip" id="${k}-address" ${stat ? "" : "disabled"} value="${stat ? val("address") : esc(live || "")}" placeholder="192.168.2.50/24"></div>
+      <div><label>${t("gateway")}</label><input class="inp ip" id="${k}-gateway" ${stat ? "" : "disabled"} value="${val("gateway")}" placeholder="${stat ? "" : t("fromDhcp")}"></div>
+      <div><label>${t("dns")}</label><input class="inp ip" id="${k}-dns" ${stat ? "" : "disabled"} value="${val("dns")}" placeholder="${stat ? "" : t("fromDhcp")}"></div>
+      ${stat ? `<div class="full"><button class="btn" data-save-ip="${k}">${t("save")}</button></div>` : ""}
+    </div>`;
+}
+function renderSettings() {
+  const e = $("settings"), a = document.activeElement;
+  if (a && e.contains(a) && /INPUT|SELECT/.test(a.tagName) && a.type !== "checkbox") return;
+  const L = st.live || {}, sw = id => `<button class="sw" data-recv="${id}" aria-checked="${cfg[id] !== "off"}"></button>`;
+  const cur = L.ssid ? `${t("connectedTo")} ${esc(L.ssid)} · −${L.signal || "?"} dBm` : t("notConnected");
+  e.innerHTML = `
+  <section><p class="eyebrow">${t("appearance")}</p><div class="card pad"><div class="seg">
+    <button aria-selected="${theme === "system"}" data-theme="system">${t("themeSystem")}</button><button aria-selected="${theme === "light"}" data-theme="light">${t("light")}</button><button aria-selected="${theme === "dark"}" data-theme="dark">${t("dark")}</button></div></div>
+    <div class="card set" style="margin-top:10px"><div class="set-row"><div class="k">${t("language")}</div><div class="v"><select class="inp" id="lang-sel">${LANGS.map(l => `<option value="${l[0]}" ${l[0] === lang ? "selected" : ""}>${l[1]}</option>`).join("")}</select></div></div></div></section>
+  <section><p class="eyebrow">${t("general")}</p><div class="card set"><div class="set-row"><div><div class="k">${t("name")}</div><div class="sub">${t("nameSub")}</div></div>
+    <div class="v"><input class="inp name" id="devname" value="${esc(st.name || "")}"></div></div></div></section>
+  <section><p class="eyebrow">${t("ethernet")}</p><div class="card set"><div class="set-row"><div><div class="k">${t("ethernet")}</div><div class="sub">${esc(L.eth || t("noCable"))}</div></div></div>${ipBlock("eth")}</div></section>
+  <section><p class="eyebrow">${t("wifi")}</p><div class="card set">
+    <div class="set-row"><div><div class="k">${t("wifi")}</div><div class="sub">${cur}</div></div></div>
+    ${nets.length ? nets.map(n => `<div class="set-row"><div class="k">${esc(n)}</div><div class="v"><button class="btn" data-forget="${esc(n)}">${t("forget")}</button></div></div>`).join("") : `<div class="empty">${t("notConnected")}</div>`}
+    ${ipBlock("wifi")}
+    <div class="set-row"><div class="k">${t("addNet")}</div></div>
+    <div class="net-form"><input class="inp" id="n-ssid" placeholder="${t("ssid")}" autocomplete="off"><input class="inp" id="n-pass" type="password" placeholder="${t("pass")}" autocomplete="new-password"><div><button class="btn" id="n-add">${t("add")}</button></div></div>
+  </div></section>
+  <section><p class="eyebrow">${t("receivers")}</p><div class="card set">${RECV.map(x => `<div class="set-row"><div><div class="k">${x.name}</div><div class="sub">${t(x.sub)}</div></div><div class="v">${sw(x.id)}</div></div>`).join("")}</div></section>
+  <section><p class="eyebrow">${t("sys")}</p><div class="card set">
+    <div class="set-row"><div><div class="k">${t("firmware")}</div></div><div class="v">${esc(st.firmware || "")}</div></div>
+    <div class="set-row"><div class="k">${t("restart")}</div><div class="v"><button class="btn" data-act="restart">${askT.restart ? t("restartAsk") : t("restart")}</button></div></div>
+    <div class="set-row"><div><div class="k">${t("factory")}</div><div class="sub">${t("factorySub")}</div></div><div class="v"><button class="btn danger" data-act="reset">${askT.reset ? t("factoryAsk") : t("factory")}</button></div></div>
+  </div></section>`;
+  $("lang-sel").onchange = ev => applyLang(ev.target.value);
+  $("devname").onchange = async ev => { if (await save("name", ev.target.value.trim())) refresh(); };
+  $("n-add").onclick = async () => {
+    const ssid = $("n-ssid").value.trim(), passphrase = $("n-pass").value;
+    if (!ssid) return;
+    try { await api("/api/wifi/add", {ssid, passphrase}); toast(t("saved")); $("n-pass").value = ""; $("n-ssid").value = ""; refresh(); } catch (er) { toast(t("failed") + ": " + er.message, true); }
   };
-  const SOURCES = [
-    { id:"airplay", name:"AirPlay 2",       short:"AirPlay",  color:"#ffef7a" },
-    { id:"spotify", name:"Spotify Connect", short:"Spotify",  color:"#6aff00" },
-    { id:"usb",     name:"USB",             short:"USB",      color:"#00aeff" },
-    { id:"aux",     name:"Optický / AUX",   short:"AUX",      color:"#ffdd00" },
-    { id:"snap",    name:"Snapcast",        short:"Snapcast", color:"#00ff88" },
-  ];
-  const COLOR_OF = {}; SOURCES.forEach(s => COLOR_OF[s.id] = s.color);
-  const LANGS = [{code:"cs",label:"Čeština"},{code:"en",label:"English"}];
-  const ICONS = {
-    airplay:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 15h12L12 7 6 15zm6 1l3 4H9l3-4z"/></svg>',
-    spotify:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm4.6 14.4c-.2.3-.5.4-.8.2-2.2-1.3-5-1.6-8.3-.9-.4.1-.7-.2-.8-.5-.1-.4.2-.7.5-.8 3.6-.8 6.7-.4 9.2 1.1.3.2.4.5.2.9zm1.2-2.7c-.2.4-.7.5-1 .3-2.5-1.5-6.3-2-9.3-1.1-.4.1-.9-.1-1-.5s.1-.9.5-1c3.4-1 7.6-.5 10.5 1.3.3.2.5.7.3 1zm.1-2.8C15 9.1 9.9 8.9 7 9.8c-.5.2-1-.1-1.2-.6s.1-1 .6-1.2c3.3-1 9-.8 12.5 1.3.5.3.6.9.3 1.4-.3.4-.9.6-1.3.4z"/></svg>',
-    usb:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 4h-2v9.2a2 2 0 11-2 0V6H9l3-4zM7 11a2 2 0 110 4 2 2 0 010-4zm10-2a1.5 1.5 0 110 3 1.5 1.5 0 010-3z"/></svg>',
-    aux:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a2 2 0 012 2v9.5a5 5 0 11-4 0V4a2 2 0 012-2z"/></svg>',
-    snap:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 9h3l4-4v14l-4-4H4V9zm12.5 3a4 4 0 00-2-3.5l1-1.7a6 6 0 010 10.4l-1-1.7a4 4 0 002-3.5z"/></svg>',
-  };
-  const ART = '<svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a1a3e"/><stop offset=".55" stop-color="#7a2b55"/><stop offset="1" stop-color="#e86a3a"/></linearGradient></defs><rect width="96" height="96" fill="url(#g)"/><circle cx="48" cy="60" r="20" fill="#ffd27a"/><rect x="0" y="62" width="96" height="3" fill="#2a1a3e" opacity=".55"/><rect x="0" y="68" width="96" height="2" fill="#2a1a3e" opacity=".45"/><rect x="0" y="73" width="96" height="2" fill="#2a1a3e" opacity=".35"/></svg>';
-  const THEME_ICONS = {
-    system:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 010 16" fill="currentColor" stroke="none"/></svg>',
-    light:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>',
-    dark:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/></svg>',
-  };
-  let active = "airplay", playing = true, theme = "system", lang = "en", showOn = true;
+}
+function renderAll(force) { renderHeader(); renderControl(); if (force || !$("settings").hidden) renderSettings(); }
 
-  function applyTheme(t){ theme=t; const r=document.documentElement; if(t==="system")r.removeAttribute("data-theme");else r.setAttribute("data-theme",t); try{localStorage.setItem("zair-theme",t)}catch(e){} document.getElementById("themebtn").innerHTML=THEME_ICONS[t]; document.querySelectorAll("#theme-seg button").forEach(b=>b.setAttribute("aria-selected",b.dataset.t===t)); }
-  function setTheme(t){ applyTheme(t); }
-  function cycleTheme(){ applyTheme({system:"light",light:"dark",dark:"system"}[theme]); }
+/* ---- polling ---- */
+async function refresh(settingsToo) {
+  try {
+    st = await api("/api/status");
+    if (settingsToo !== false) { const s = await api("/api/settings"); cfg = s.fields || {}; nets = s.networks || []; }
+    offlineShown = false; $("hled").style.opacity = ""; renderAll();
+  } catch (e) { $("hled").style.opacity = ".3"; if (!offlineShown) { offlineShown = true; toast(t("offline"), true); } }
+}
 
-  function applyLang(l){ lang=l; const d=T[l]; try{localStorage.setItem("zair-lang",l)}catch(e){} document.documentElement.lang=l;
-    document.querySelectorAll("[data-i18n]").forEach(el=>{const v=d[el.dataset.i18n]; if(v!=null)el.textContent=v;});
-    const sel=document.getElementById("lang-sel"); if(sel) sel.value=l;
-    renderSources(); renderSwatches(); paintNowPlaying(); }
-  function setLang(l){ applyLang(l); }
-
-  function srcName(s){ return (T[lang].srcName && T[lang].srcName[s.id]) || s.name; }
-  function renderSources(){
-    document.getElementById('sources').innerHTML = SOURCES.map(s=>`
-      <button class="src-row" aria-current="${s.id===active}" onclick="pick('${s.id}')">
-        <span class="glyph">${ICONS[s.id]}</span>
-        <span><span class="nm">${srcName(s)}</span><div class="st">${T[lang].st[s.id]}</div></span>
-        <span class="dotc" style="color:${COLOR_OF[s.id]};background:${COLOR_OF[s.id]}"></span>
-        <svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5L20 6"/></svg>
-      </button>`).join('');
+/* ---- events ---- */
+document.addEventListener("click", async ev => {
+  const b = ev.target.closest("button"); if (!b) return;
+  if (b.dataset.tab) { const c = b.dataset.tab === "control"; $("control").hidden = !c; $("settings").hidden = c; $("tab-control").setAttribute("aria-selected", c); $("tab-settings").setAttribute("aria-selected", !c); if (!c) renderSettings(); }
+  else if (b.dataset.pick) { try { await api("/api/source", {id: b.dataset.pick}); toast(t("picked")); setTimeout(refresh, 600); } catch (e) { toast(t("failed"), true); } }
+  else if (b.dataset.theme) { applyTheme(b.dataset.theme); renderSettings(); }
+  else if (b.dataset.recv) { const on = b.getAttribute("aria-checked") !== "true"; b.setAttribute("aria-checked", on); if (await save(b.dataset.recv, on ? "on" : "off")) refresh(); }
+  else if (b.dataset.mode) {
+    const [k, m] = b.dataset.mode.split(":");
+    if (m === "static") { pendingStatic[k] = true; renderSettings(); }
+    else { pendingStatic[k] = false; if (await save(k + ".mode", "dhcp")) refresh(); }
   }
-  function renderSwatches(){
-    document.getElementById('swatches').innerHTML = SOURCES.filter(s=>s.id!=='snap').map(s=>`
-      <div class="swatch-row"><span class="nm">${srcName(s)}</span>
-        <input type="color" class="swatch" value="${COLOR_OF[s.id]}" aria-label="${srcName(s)}" oninput="setColor('${s.id}', this.value)"></div>`).join('');
+  else if (b.dataset.saveIp) {
+    const k = b.dataset.saveIp, v = id => $(k + "-" + id).value.trim();
+    if (!v("address")) { toast(t("failed"), true); return; }
+    let ok = await save(k + ".address", v("address"), true) && await save(k + ".gateway", v("gateway"), true) && await save(k + ".dns", v("dns"), true) && await save(k + ".mode", "static", true);
+    if (ok) { pendingStatic[k] = false; toast(t("saved")); refresh(); }
   }
-  function setColor(id, hex){ COLOR_OF[id]=hex; renderSources(); if(id===active) paintNowPlaying(); }
-
-  function paintNowPlaying(){
-    const s = SOURCES.find(x=>x.id===active);
-    document.getElementById('np-source').textContent = `${s.short} · ${playing?T[lang].playing:T[lang].paused}`;
-    document.getElementById('np-pin').style.background = COLOR_OF[active];
-    document.getElementById('np-art').innerHTML = ART;
+  else if (b.dataset.forget) { try { await api("/api/wifi/forget", {ssid: b.dataset.forget}); toast(t("saved")); refresh(); } catch (e) { toast(t("failed") + ": " + e.message, true); } }
+  else if (b.dataset.act) {
+    const a = b.dataset.act;
+    if (!askT[a]) { askT[a] = setTimeout(() => { askT[a] = 0; renderSettings(); }, 5000); renderSettings(); return; }
+    clearTimeout(askT[a]); askT[a] = 0;
+    try { await api(a === "restart" ? "/api/restart" : "/api/reset", a === "reset" ? {what: "settings"} : {}); toast(a === "restart" ? t("restarting") : t("saved")); } catch (e) { if (a === "restart") toast(t("restarting")); else toast(t("failed"), true); }
+    renderSettings();
   }
-  function pick(id){ active=id; playing=true; introT=performance.now(); paintNowPlaying(); renderSources(); setPlayIcon(); }
-  function setPlayIcon(){ document.getElementById('playbtn').innerHTML = playing
-      ? '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5h3v14H8V5zm5 0h3v14h-3V5z"/></svg>'
-      : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l12 7-12 7V5z"/></svg>'; }
-  function togglePlay(){ playing=!playing; setPlayIcon(); paintNowPlaying(); }
-  function showTab(t){ const c=t==='control'; document.getElementById('control').hidden=!c; document.getElementById('settings').hidden=c; document.getElementById('tab-control').setAttribute('aria-selected',c); document.getElementById('tab-settings').setAttribute('aria-selected',!c); }
-  function onVol(v){ document.getElementById('volout').textContent=v; document.getElementById('vol').style.setProperty('--p',v+'%'); }
-  function nudge(d){ const el=document.getElementById('vol'); el.value=Math.max(0,Math.min(100,+el.value+d)); onVol(el.value); }
-  function skip(d){}
-  function tog(b){ b.setAttribute('aria-checked', b.getAttribute('aria-checked')!=='true'); }
-  function toggleShow(){ showOn=document.getElementById('showsw').getAttribute('aria-checked')==='true'; }
-  function ipMode(which, mode){ document.getElementById(which+'-static').hidden = mode!=='static';
-    document.querySelectorAll(`[onclick*="ipMode('${which}'"]`).forEach(b=>b.setAttribute('aria-selected', b.getAttribute('onclick').includes("'"+mode+"'"))); }
+});
+$("vol").addEventListener("input", e => sendVol(+e.target.value));
+$("vminus").onclick = () => sendVol(Math.max(0, +$("vol").value - 5));
+$("vplus").onclick = () => sendVol(Math.min(100, +$("vol").value + 5));
+$("themebtn").onclick = () => { applyTheme({system:"light", light:"dark", dark:"system"}[theme]); if (!$("settings").hidden) renderSettings(); };
 
-  /* ---- live LED show: random colour on a (simulated) beat, brightness pulses and decays ---- */
-  let introT = 0, showHue = Math.random()*360, bright = .5, lastBeat = 0, nextBeat = 420;
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  function hexToRgb(h){ const n=parseInt(h.slice(1),16); return [n>>16&255, n>>8&255, n&255]; }
-  function paintLed(r,g,b){
-    const col=`rgb(${r|0},${g|0},${b|0})`;
-    const dot=document.getElementById('hled');
-    dot.style.background=col; dot.style.boxShadow=`0 0 ${6+bright*12}px ${bright*2}px ${col}`;
-  }
-  function showFrame(ts){
-    const cv=document.getElementById('showcanvas'); if(!cv){requestAnimationFrame(showFrame);return;}
-    const ctx=cv.getContext('2d'); let r,g,b;
-    const inIntro = playing && (ts-introT < 1800);     // show the input colour briefly after a switch, like the speaker
-    if(!showOn || !playing){ [r,g,b]=hexToRgb(COLOR_OF[active]); const k=showOn?0.85:0.5; r*=k;g*=k;b*=k; }
-    else if(inIntro){ [r,g,b]=hexToRgb(COLOR_OF[active]); }
-    else {
-      if(!reduce && ts-lastBeat>nextBeat){ lastBeat=ts; nextBeat=300+Math.random()*430; showHue=(showHue+80+Math.random()*180)%360; bright=1; }
-      else if(!reduce){ bright=Math.max(.12, bright-0.018); } else { bright=.7; }
-      const l=30+bright*42; [r,g,b]=hslToRgb(showHue/360, .92, l/100);
-    }
-    // paint strip with a soft horizontal glow
-    const grad=ctx.createLinearGradient(0,0,cv.width,0);
-    grad.addColorStop(0,`rgb(${r*.5|0},${g*.5|0},${b*.5|0})`);
-    grad.addColorStop(.5,`rgb(${r|0},${g|0},${b|0})`);
-    grad.addColorStop(1,`rgb(${r*.5|0},${g*.5|0},${b*.5|0})`);
-    ctx.fillStyle='#0a0a0b'; ctx.fillRect(0,0,cv.width,cv.height);
-    ctx.fillStyle=grad; ctx.fillRect(0,0,cv.width,cv.height);
-    paintLed(r,g,b);
-    requestAnimationFrame(showFrame);
-  }
-  function hslToRgb(h,s,l){ let r,g,b; if(s==0){r=g=b=l;}else{ const q=l<.5?l*(1+s):l+s-l*s; const p=2*l-q; const hk=(t)=>{ if(t<0)t+=1; if(t>1)t-=1; if(t<1/6)return p+(q-p)*6*t; if(t<1/2)return q; if(t<2/3)return p+(q-p)*(2/3-t)*6; return p; }; r=hk(h+1/3);g=hk(h);b=hk(h-1/3);} return [r*255,g*255,b*255]; }
-
-  (function init(){
-    let t="system", l="en"; try{t=localStorage.getItem("zair-theme")||"system"; l=localStorage.getItem("zair-lang")||"en";}catch(e){}
-    document.getElementById("lang-sel").innerHTML = LANGS.map(x=>`<option value="${x.code}">${x.label}</option>`).join("");
-    applyTheme(t); applyLang(l); setPlayIcon();
-    requestAnimationFrame(showFrame);
-  })();
-</script>
-
-<script>
-/* ---- live backend: the real speaker. Degrades to the mock when the API isn't reachable (e.g. this preview). ---- */
-(function(){
-  function post(p, data){
-    const b = Object.entries(data).map(([k,v]) => encodeURIComponent(k)+'='+encodeURIComponent(v)).join('&');
-    return fetch(p, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:b }).catch(()=>{});
-  }
-  async function get(p){ const r = await fetch(p, { cache:'no-store' }); if(!r.ok) throw 0; return r.json(); }
-
-  const _onVol = window.onVol, _pick = window.pick;
-  let vt;
-  window.onVol = function(v){ _onVol(v); clearTimeout(vt); vt = setTimeout(()=>post('/api/volume', {value:v}), 120); };
-  window.pick = function(id){ _pick(id); post('/api/source', {id}); };
-
-  const dn = document.getElementById('devname');
-  if (dn) dn.addEventListener('change', ()=>post('/api/set', {key:'name', value:dn.value}));
-
-  document.querySelectorAll('[data-set-key]').forEach(b=>{
-    b.addEventListener('click', ()=>{
-      const key = b.dataset.setKey;
-      const val = b.classList.contains('sw') ? (b.getAttribute('aria-checked')==='true' ? 'on' : 'off') : (b.dataset.setVal || '');
-      post('/api/set', {key, value:val});
-    });
-  });
-
-  async function hydrate(){
-    try{
-      const st = await get('/api/status');
-      if(st.name){ if(dn) dn.value = st.name; const h = document.querySelector('.brand h1'); if(h) h.textContent = st.name; }
-      const live = st.live || {};
-      if(typeof live.volume === 'number' && live.volume > 0){ const el = document.getElementById('vol'); if(el){ el.value = live.volume; _onVol(live.volume); } }
-      if(live.source && window.SOURCES && SOURCES.some(s=>s.id===live.source)) _pick(live.source);
-      const ip = live.wifi || live.eth || st.ip;
-      if(ip){ const chip = document.querySelector('.status'); if(chip) chip.innerHTML = '<span class="dot"></span>' + ip; }
-    }catch(e){}
-    try{
-      const s = await get('/api/settings'); const f = s.fields || {};
-      document.querySelectorAll('.sw[data-set-key]').forEach(b=>{ const v = f[b.dataset.setKey]; if(v!=null) b.setAttribute('aria-checked', v==='on'); });
-      ['eth','wifi'].forEach(w=>{ const m = f[w+'.mode']; if(m && typeof ipMode==='function') ipMode(w, m==='static' ? 'static' : 'dhcp'); });
-    }catch(e){}
-  }
-  if(document.readyState !== 'loading') hydrate(); else document.addEventListener('DOMContentLoaded', hydrate);
+(function init() {
+  let th = "system", lg = "en";
+  try { th = localStorage.getItem("zair-theme") || "system"; lg = localStorage.getItem("zair-lang") || "en"; } catch (e) {}
+  if (!T[lg]) lg = "en";
+  lang = lg; applyTheme(th); renderAll(true);
+  refresh();
+  setInterval(() => refresh(false), 2000);
+  setInterval(() => refresh(true), 15000);
+  setInterval(showTick, 520);
 })();
 </script>
