@@ -59,7 +59,7 @@ protocol (the status flags, bass and light-show commands) are listed there too; 
 
 | Branch / tag | What it is |
 |---|---|
-| `release-0.4` | **the latest**: the control panel, inputs, bass, light show (0.4, 0.4.1, 0.4.2) |
+| `release-0.4` (release [`v0.4.2`](https://github.com/jurajs5/zd1/releases/tag/v0.4.2)) | **the latest**: the control panel, inputs, bass, light show (0.4, 0.4.1, 0.4.2) |
 | `release-0.3` | AirPlay no longer stays silent after a failed Spotify start (0.3, 0.3.1) |
 | `release-0.2` | volume cap at stock's full range, version stamp (0.2, 0.2.1) |
 | tag `0.1` | the baseline: the maintainer's ZD1L support + the beat-reactive light show + a first anti-pop on source switch |
@@ -73,22 +73,22 @@ failure at the wrong moment could leave the speaker needing recovery
 ([`docs/recovery/factory-reset.md`](docs/recovery/factory-reset.md)). It has been done on one unit, by one person.
 No warranty.
 
-1. **Get the firmware.** Take the `zd1l-show-fw` artifact of the latest successful *zd1l-show* run of a release branch
-   under **Actions** (it is `zd1l-show.fw`, 30 days' retention), or build it yourself with
-   [nix](https://nixos.org/download/): `nix build .#zd1l-fw`; the result is `zd1l.fw` (the build needs an x86_64 Linux
-   machine or builder, the MCU's compiler being an x86_64 Linux binary).
+1. **Get the firmware.** Download `zd1l-0.4.2.fw` from the
+   [latest release](https://github.com/jurajs5/zd1/releases/tag/v0.4.2) (its SHA-256 is in the release notes), or build
+   it yourself with [nix](https://nixos.org/download/): `nix build .#zd1l-fw`; the result is `zd1l.fw` (the build needs
+   an x86_64 Linux machine or builder, the MCU's compiler being an x86_64 Linux binary). The command lines below use `zd1l-0.4.2.fw`; use the name of your file. The release file is built by CI from the tagged commit.
 2. **Put the speaker into BL2.** Connect it to your network with an Ethernet cable. Unplug the power, hold **ON/OFF**
    while plugging it in, and wait for the white LED. The white LED alone does not prove it (the normal "AirPlay ready"
    state is also white), so check in the next step.
 3. **Check that BL2 answers** (reads only, writes nothing):
    ```
-   python3 -I tools/zeppelin/knos/bl2web.py <speaker-ip> zd1l-show.fw
+   python3 -I tools/zeppelin/knos/bl2web.py <speaker-ip> zd1l-0.4.2.fw
    ```
    BL2 takes an address by DHCP (look in your router) or uses `169.254.1.1`. If something else answers on port 80, or
    nothing does, it is not in BL2: do not go on.
 4. **Flash** (this writes the module and the MCU, about a minute):
    ```
-   python3 -I tools/zeppelin/knos/bl2web.py <speaker-ip> zd1l-show.fw --yes
+   python3 -I tools/zeppelin/knos/bl2web.py <speaker-ip> zd1l-0.4.2.fw --yes
    ```
    The speaker restarts by itself. Give it a minute, then open `http://<speaker-ip>/`.
 5. **Set it up** in the panel's Settings: the name, Wi-Fi if you want it.
