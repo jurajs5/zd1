@@ -26,6 +26,20 @@ switching misbehaved afterwards, so it was dropped and is not part of 0.1.)
   shows it holds the mute for 500 ms and waits for the new input to report locked; that is the
   fix slated for 0.2.
 
+## 0.3 — AirPlay no longer stays silent after a failed Spotify; a new Spotify device id
+
+Module only (`mcu/` is 0.2.1's: switch hold 80 ms, cap default 71).
+
+- **AirPlay stuck silent after Spotify.** Picking a receiver makes `zd1-linkd` broadcast `yield X`
+  to every app, X included, and only `select` or the old owner's `resume` cleared a receiver's
+  `yielded`. After a Spotify pick that never played (audio key refused: no owner, so no `resume`),
+  AirPlay stayed `yielded`: it received its stream and dropped it, never said `playing`, and the MCU
+  saw `paused`. `zd1-audio` now treats its own `yield` as "the speaker is ours" and drops a stale
+  yield (`module/os/apps/zd1-audio/src/speaker.rs`). Before: only `zd1-ctl restart airplay` helped.
+- **New Spotify device id** (`zd1-spotify`): a 40-hex id derived from the MAC and a salt, instead of
+  the MAC padded with zeros. To Spotify the speaker is a new device. An experiment: the audio-key
+  refusal is reported per account (librespot-org/librespot#1649), so it may not help.
+
 ## 0.2.1 — switch speed back to 0.1's
 
 - `SWITCH_SETTLE_MS` 500 -> 80 ms: with stock's 500 ms hold every input switch felt slow, so the

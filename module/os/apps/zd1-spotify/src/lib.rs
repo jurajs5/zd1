@@ -52,6 +52,30 @@ fn on_speaker(spirc: &Mutex<Option<Spirc>>, ev: Event) {
     }
 }
 
+/// The device id Spotify knows this speaker by: 40 hex digits, the same on every boot, ours alone. Up to 0.2 it was the
+/// MAC padded with zeros; 0.3 derives it from the MAC and a salt instead (a new device to Spotify, and a normal-looking
+/// id). Not a secret and not cryptographic: FNV-1a over the salt and the MAC seeds splitmix64. Change SALT's number to
+/// make the speaker a new device again.
+fn device_id(mac: &[u8]) -> String {
+    const SALT: &[u8] = b"zeppelin-air spotify device id 1";
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in SALT.iter().chain(mac) {
+        h ^= u64::from(*b);
+        h = h.wrapping_mul(0x0100_0000_01b3);
+    }
+    let mut id = String::with_capacity(48);
+    for _ in 0..3 {
+        h = h.wrapping_add(0x9e37_79b9_7f4a_7c15);
+        let mut z = h;
+        z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+        z ^= z >> 31;
+        id.push_str(&format!("{z:016x}"));
+    }
+    id.truncate(40);
+    id
+}
+
 #[tokio::main(flavor = "current_thread")]
 pub async fn main() {
     zd1_compat::init();
@@ -79,10 +103,7 @@ pub async fn main() {
         ..Default::default()
     });
 
-    let session_config = SessionConfig {
-        device_id: format!("{:0<40}", mac.iter().map(|b| format!("{b:02x}")).collect::<String>()),
-        ..SessionConfig::default()
-    };
+    let session_config = SessionConfig { device_id: device_id(&mac), ..SessionConfig::default() };
     let connect_config = ConnectConfig { name: name.clone(), device_type: DeviceType::Speaker, ..Default::default() };
 
     let spirc: Arc<Mutex<Option<Spirc>>> = Arc::new(Mutex::new(None));

@@ -161,6 +161,16 @@ impl Speaker {
                         let playing = self.link.lock().unwrap().state == "playing";
                         events(Event::Yield { playing });
                     }
+                    ("yield", src) if src == self.source => {
+                        // zd1-linkd broadcasts `yield X` when X is picked (`intent`), to X too: the speaker is X's now. If we
+                        // had yielded to a source that was picked before and never played (Spotify's refused audio key
+                        // leaves no owner and so no `resume`), that yield is stale: drop it, or we receive and drop our
+                        // sender's audio and never say `playing`
+                        if self.yielded.swap(false, Ordering::Relaxed) {
+                            tracing::info!("picked: the speaker is ours, dropping an earlier yield");
+                            self.reclaim();
+                        }
+                    }
                     ("resume", src) if src != self.source => {
                         if self.yielded.swap(false, Ordering::Relaxed) {
                             tracing::info!(src, "the other source stopped: the speaker is ours again");
