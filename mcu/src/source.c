@@ -27,7 +27,7 @@ static uint32_t source_amp_idle_ms(void) { return (uint32_t)g_settings.amp_idle_
 /* a source switch mutes the amp first; keep it muted this long before the unmute, so the input-mux glitch and the
  * DAC's soft-mute ramp die out while silent (no speaker pop). Stock holds 500 ms (its timer 0x32, FUN_8001332c: armed
  * when the new input reports ready, then FUN_80013a68 unmutes the amp, the DAC, and ramps) */
-#define SWITCH_SETTLE_MS 500
+#define SWITCH_SETTLE_MS 80 /* 0.1's value; 0.2 tried stock's 500 ms, which the user found too slow */
 #define USER_GUARD_MS    8000 /* after a source picked by hand, nothing switches by itself */
 /* a USB stream takes the speaker (or wakes it) after sounding this long without a break, so that a system sound
  * doesn't (an alert lasts up to ~1.4 s [HW 2026-10-27]) */

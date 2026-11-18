@@ -26,6 +26,12 @@ switching misbehaved afterwards, so it was dropped and is not part of 0.1.)
   shows it holds the mute for 500 ms and waits for the new input to report locked; that is the
   fix slated for 0.2.
 
+## 0.2.1 — switch speed back to 0.1's
+
+- `SWITCH_SETTLE_MS` 500 -> 80 ms: with stock's 500 ms hold every input switch felt slow, so the
+  hold is back to what 0.1 had. A small switch pop may return; the stock lock gate is the planned
+  proper fix. Everything else is 0.2.
+
 ## 0.2 — in progress (branch `release-0.2`, built from tag `0.1`)
 
 - **Volume: the cap is now stock's full range.** `SETTINGS_VOL_CAP_DEFAULT` 40 -> 71
