@@ -19,6 +19,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 const PAGE: &str = include_str!("index.html");
 const LINK: &str = "/run/zd1link";
+/// What the AirPlay receiver is playing (zd1-airplay writes them): a small JSON object, and the cover as it came.
+const NOW: &str = "/run/zd1/now.json";
+const COVER: &str = "/run/zd1/cover";
 /// A restart asked for: done once the answer has gone out (busybox `reboot` signals init, which stops everything).
 static RESTART: AtomicBool = AtomicBool::new(false);
 
@@ -60,7 +63,11 @@ fn serve(mut s: TcpStream) -> std::io::Result<()> {
     r.read_exact(&mut body)?;
     let body = String::from_utf8_lossy(&body).into_owned();
 
-    let (code, ctype, out) = route(&method, path.split('?').next().unwrap_or(&path), &body);
+    let only = path.split('?').next().unwrap_or(&path).to_string();
+    if method == "GET" && only == "/api/cover" {
+        return send_cover(&mut s);
+    }
+    let (code, ctype, out) = route(&method, &only, &body);
     let bytes = out.as_bytes();
     write!(
         s,
@@ -73,6 +80,26 @@ fn serve(mut s: TcpStream) -> std::io::Result<()> {
         let _ = std::process::Command::new("reboot").spawn();
     }
     Ok(())
+}
+
+/// The cover of what plays, JPEG or PNG as the sender gave it (told apart by its first bytes).
+fn send_cover(s: &mut TcpStream) -> std::io::Result<()> {
+    let bytes = std::fs::read(COVER).unwrap_or_default();
+    let ctype = match bytes.as_slice() {
+        [0xFF, 0xD8, ..] => "image/jpeg",
+        [0x89, b'P', b'N', b'G', ..] => "image/png",
+        _ => "",
+    };
+    if ctype.is_empty() {
+        return s.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+    }
+    write!(
+        s,
+        "HTTP/1.1 200 OK\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nConnection: close\r\nCache-Control: max-age=600\r\n\r\n",
+        bytes.len()
+    )?;
+    s.write_all(&bytes)?;
+    s.flush()
 }
 
 fn route(method: &str, path: &str, body: &str) -> (&'static str, &'static str, String) {
@@ -94,6 +121,12 @@ fn route(method: &str, path: &str, body: &str) -> (&'static str, &'static str, S
         }
         ("POST", "/api/set") => outcome(set_value(form(body, "key"), form(body, "value"))),
         ("POST", "/api/action") => outcome(do_action(form(body, "key"), form(body, "value"))),
+        ("POST", "/api/bass") => {
+            if let Some(v) = form(body, "value").and_then(|v| v.trim().parse::<u32>().ok()) {
+                linkd_send(&format!("bass {}", v.min(4)));
+            }
+            ok()
+        }
         ("POST", "/api/wifi/add") => outcome(wifi_add(form(body, "ssid"), form(body, "passphrase"))),
         ("POST", "/api/wifi/forget") => outcome(do_action(Some("wifi.forget".into()), form(body, "ssid"))),
         ("POST", "/api/reset") => outcome(do_reset(form(body, "what"))),
@@ -167,6 +200,12 @@ fn ok() -> (&'static str, &'static str, String) {
 fn api_status() -> String {
     let name = zd1_settings::get("name").unwrap_or_else(zd1_settings::default_name);
     let live = linkd_status();
+    let now =
+        std::fs::read_to_string(NOW).ok().filter(|n| n.trim_start().starts_with('{')).unwrap_or_else(|| "{}".into());
+    let live = match live.strip_suffix('}') {
+        Some(head) => format!("{head},\"now\":{now}}}"),
+        None => String::new(),
+    };
     format!(
         "{{\"name\":{},\"firmware\":{},\"live\":{}}}",
         jstr(&name),

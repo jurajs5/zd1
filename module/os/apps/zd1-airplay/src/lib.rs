@@ -18,7 +18,7 @@
 
 use shairplay::{
     AudioFormat, AudioHandler, AudioSession, DeviceIdentity, RaopServer, RemoteCommand, RemoteControl, SampleFormat,
-    Samples,
+    Samples, TrackMetadata,
 };
 use std::sync::{Arc, Mutex};
 use tokio::signal::unix::{SignalKind, signal};
@@ -65,6 +65,80 @@ fn on_speaker(shared: &Arc<Mutex<Shared>>, ev: speaker::Event) {
             Err(e) => tracing::warn!(?cmd, why, %e, "sender refused"),
         },
         None => tracing::info!(why, "no sender to control"),
+    }
+}
+
+/// What plays, for the web panel (zd1-webd): `/run/zd1/now.json` (a small JSON object: title, artist, album and the
+/// cover's address when there is one) and `/run/zd1/cover` (the picture as the sender gave it). RAM only (/run). A sender
+/// that sends none leaves the panel with the receiver's name; the files go when the session ends.
+mod now {
+    use super::TrackMetadata;
+    use std::sync::Mutex;
+    const DIR: &str = "/run/zd1";
+    const MAX_COVER: usize = 400 * 1024;
+    #[derive(Default)]
+    struct Now {
+        title: String,
+        artist: String,
+        album: String,
+        cover: u32, // 0: none; else a counter, so the page loads a new picture
+    }
+    static NOW: Mutex<Option<Now>> = Mutex::new(None);
+
+    fn json(s: &str) -> String {
+        let mut o = String::with_capacity(s.len() + 2);
+        o.push('"');
+        for c in s.chars() {
+            match c {
+                '"' => o.push_str("\\\""),
+                '\\' => o.push_str("\\\\"),
+                c if (c as u32) < 0x20 => o.push(' '),
+                c => o.push(c),
+            }
+        }
+        o.push('"');
+        o
+    }
+    fn write(n: &Now) {
+        let _ = std::fs::create_dir_all(DIR);
+        let cover = if n.cover > 0 { format!("\"/api/cover?v={}\"", n.cover) } else { "\"\"".into() };
+        let body = format!(
+            "{{\"title\":{},\"artist\":{},\"album\":{},\"cover\":{cover}}}",
+            json(&n.title),
+            json(&n.artist),
+            json(&n.album)
+        );
+        let tmp = format!("{DIR}/now.json.tmp");
+        if std::fs::write(&tmp, body).is_ok() {
+            let _ = std::fs::rename(&tmp, format!("{DIR}/now.json"));
+        }
+    }
+    pub fn metadata(m: &TrackMetadata) {
+        let mut g = NOW.lock().unwrap();
+        let n = g.get_or_insert_with(Now::default);
+        n.title = m.title.clone().unwrap_or_default();
+        n.artist = m.artist.clone().unwrap_or_default();
+        n.album = m.album.clone().unwrap_or_default();
+        write(n);
+    }
+    pub fn cover(bytes: &[u8]) {
+        if bytes.is_empty() || bytes.len() > MAX_COVER {
+            return;
+        }
+        let _ = std::fs::create_dir_all(DIR);
+        let tmp = format!("{DIR}/cover.tmp");
+        if std::fs::write(&tmp, bytes).is_err() || std::fs::rename(&tmp, format!("{DIR}/cover")).is_err() {
+            return;
+        }
+        let mut g = NOW.lock().unwrap();
+        let n = g.get_or_insert_with(Now::default);
+        n.cover = n.cover.wrapping_add(1).max(1);
+        write(n);
+    }
+    pub fn clear() {
+        *NOW.lock().unwrap() = None;
+        let _ = std::fs::remove_file(format!("{DIR}/now.json"));
+        let _ = std::fs::remove_file(format!("{DIR}/cover"));
     }
 }
 
@@ -122,6 +196,14 @@ impl AudioHandler for Handler {
         self.speaker.intent();
     }
 
+    fn on_metadata(&self, metadata: &TrackMetadata) {
+        now::metadata(metadata);
+    }
+
+    fn on_coverart(&self, coverart: &[u8]) {
+        now::cover(coverart);
+    }
+
     fn on_session_end(&self, addr: &str) {
         let left = {
             let mut s = self.shared.lock().unwrap();
@@ -131,6 +213,7 @@ impl AudioHandler for Handler {
         tracing::info!(addr, left, "session ended");
         if left == 0 {
             self.speaker.session(false);
+            now::clear();
         } // its remote-control connection may stay: not a sender
     }
 

@@ -22,6 +22,7 @@ bool source_select_player(uint8_t player);
 void source_standby(void);
 sys_state_t source_state(void);
 source_t source_current(void);
+bool source_present(source_t s);       /* is that source there: a USB host's cable, an AUX plug, the module powered */
 void source_error(uint8_t code);       /* protections: amp off, mute, error LED, stays until cleared */
 void source_volume_set(uint8_t step);  /* absolute user step 0..VOL_MAX from AirPlay / the host link (no LED flash) */
 void source_host_volume(uint8_t step); /* the USB host's volume */

@@ -51,8 +51,19 @@ void wifi_select(uint8_t p) {
 static void snapshot(bool always) {
     if (!dm870_native())
         return;
+    /* [3]: bit 0 the module is the input (ZD1_NATIVE_INPUT); bits 1-2 the wired source in use (1 USB, 2 AUX, else 0); bits
+     * 3-5 the bass preset (0..4); bit 6 a USB host's cable, bit 7 an AUX plug. Local to our OS and this firmware: not in the
+     * generated spec yet. */
+    source_t cur = source_state() == SYS_RUN ? source_current() : SRC_NONE;
+    uint8_t flags = (uint8_t)((input ? ZD1_NATIVE_INPUT : 0) |
+                              ((cur == SRC_USB   ? 1
+                                : cur == SRC_AUX ? 2
+                                                 : 0)
+                               << 1) |
+                              ((g_settings.bass & 7) << 3) | (source_present(SRC_USB) ? 0x40 : 0) |
+                              (source_present(SRC_AUX) ? 0x80 : 0));
     uint8_t s[4] = {ZD1_NATIVE_PROTO, (uint8_t)(mod_step >= 0 && !input ? mod_step : g_settings.vol_step),
-                    usbaudio_volmax(), input ? ZD1_NATIVE_INPUT : 0};
+                    usbaudio_volmax(), flags};
     if (!always && !memcmp(s, shown, sizeof s))
         return;
     memcpy(shown, s, sizeof s);
@@ -105,9 +116,14 @@ void wifi_notify(uint8_t reg, const uint8_t *b, uint16_t n) {
     case ZD1_REG_NET_STATUS:
         net_up = zd1_net_connected(b0, b1);
         break;
-    case ZD1_REG_INTENT: /* a person picked one of our receivers */
-        if (n >= 2 && dm870_native())
-            source_intent(SRC_WIFI, b0 > ZD1_PLAYER_OTHER ? ZD1_PLAYER_OTHER : b0);
+    case ZD1_REG_INTENT: /* a person picked one of our receivers (0..4), or, from the web panel, a wired source */
+        if (n >= 2 && dm870_native()) {
+            if (b0 == 0x10 || b0 == 0x11) { /* USB / AUX: only if it is there (source_select refuses an absent one) */
+                log_puts(b0 == 0x10 ? "[wifi] the panel picked USB\n" : "[wifi] the panel picked AUX\n");
+                source_select(b0 == 0x10 ? SRC_USB : SRC_AUX);
+            } else
+                source_intent(SRC_WIFI, b0 > ZD1_PLAYER_OTHER ? ZD1_PLAYER_OTHER : b0);
+        }
         break;
     case ZD1_REG_PLAYER: { /* [front, its state, the receivers with a sender] */
         uint8_t s = n > 2 ? b[2] : 0;
@@ -133,9 +149,15 @@ void wifi_notify(uint8_t reg, const uint8_t *b, uint16_t n) {
         log_putc('\n');
         break;
     }
-    case ZD1_REG_VOLUME_SET: /* our OS asks for a volume */
-        if (dm870_native() && n >= 1)
-            module_volume(b0);
+    case ZD1_REG_VOLUME_SET: /* our OS asks for a volume ([0], 0xFF: none) and / or a bass preset ([1] = preset + 1, 0: none) */
+        if (dm870_native() && n >= 1) {
+            if (b0 != 0xFF)
+                module_volume(b0);
+            if (b1 >= 1 && b1 <= BASS_MAX + 1) {
+                source_bass_set((uint8_t)(b1 - 1));
+                snapshot(true);
+            }
+        }
         break;
     default:
         break;
@@ -178,3 +200,7 @@ void wifi_local_volume(void) { /* every volume change on the speaker (and the on
         mod_step = -1; /* the knob (or the host) after the module's request: the knob wins */
     snapshot(false);
 }
+
+void wifi_refresh(void) {
+    snapshot(false);
+} /* the source, a plug or the bass changed: tell the module (writes only on change) */

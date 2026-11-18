@@ -1,3 +1,5 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Zeppelin Air</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
@@ -157,6 +159,17 @@ button:focus-visible, .sw:focus-visible, .src-row:focus-visible, input:focus-vis
 
 <style>
 /* 0.4 additions: IP chips, buttons, the thin light-show strip */
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+#settings { display: flex; flex-direction: column; gap: 22px; padding-top: 22px; }
+#settings .col { display: contents; }
+#settings section { margin-top: 0; }
+.s-app { order: 1; } .s-gen { order: 2; } .s-net { order: 3; } .s-rec { order: 4; } .s-sys { order: 5; }
+@media (min-width: 760px) {
+  #settings { flex-direction: row; align-items: flex-start; gap: 20px; }
+  #settings .col { display: flex; flex-direction: column; gap: 22px; flex: 1 1 0; min-width: 0; }
+}
+
 .ips { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; }
 .ipchip { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--fg); font-variant-numeric: tabular-nums; }
 .ipchip svg { width: 17px; height: 17px; flex: none; }
@@ -174,6 +187,18 @@ button:focus-visible, .sw:focus-visible, .src-row:focus-visible, input:focus-vis
 .np-idle .np-title { white-space: normal; margin-top: 0; }
 .np-idle .np-sub { white-space: normal; }
 .src-row.dim { opacity: .5; cursor: default; }
+.sndcard { padding: 16px 18px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 14px; }
+.chip { font: inherit; font-size: 13px; color: var(--fg); background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 99px; padding: 6px 12px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+.bassrow { margin-top: 14px; display: flex; align-items: center; gap: 12px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bassrow .lvl { flex: 1; }
+.c-snd { order: 3; } .c-sources { order: 4; }
+@media (min-width: 760px) {
+  #control { grid-template-areas: "show show" "now sources" "vol sources" "snd sources"; grid-template-rows: auto auto auto 1fr; }
+  .c-snd { grid-area: snd; }
+}
+.src-row .glyph svg { width: 18px; height: 18px; }
 .src-row[aria-current="true"] .nm::after { content: ""; }
 #toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 9px 16px; border-radius: 99px; font-size: 13.5px; opacity: 0; pointer-events: none; transition: opacity .25s; max-width: 90vw; z-index: 20; }
 #toast.on { opacity: 1; }
@@ -210,6 +235,7 @@ button:focus-visible, .sw:focus-visible, .src-row:focus-visible, input:focus-vis
         </div>
       </div>
     </section>
+    <section class="c-snd"><div class="card sndcard" id="sound"></div></section>
     <section class="c-sources">
       <p class="eyebrow" id="t-receivers"></p>
       <div class="card list" id="receivers"></div>
@@ -228,21 +254,19 @@ const T = {
     playing:"Playing", ready:"Ready", off:"Off", volume:"Volume", receivers:"Receivers", appearance:"Appearance", system:"System", light:"Light", dark:"Dark",
     language:"Language", general:"General", name:"Name", nameSub:"How the speaker appears on the network", network:"Network", ethernet:"Ethernet", wifi:"Wi-Fi",
     connectedTo:"Connected to", notConnected:"Not connected", noCable:"No cable", ip:"Address", mask:"Address / prefix", gateway:"Gateway", dns:"DNS",
-    staticIp:"Static IP", fromDhcp:"from DHCP", save:"Save", known:"Known networks", forget:"Forget", addNet:"Add a network", ssid:"Network name",
+    staticIp:"Static IP", fromDhcp:"from DHCP", save:"Save", known:"Saved networks", noNets:"No saved networks", forget:"Forget", addNet:"Add a network", ssid:"Network name",
     pass:"Passphrase (empty: open network)", add:"Add", airplayS:"Apple devices", spotifyS:"Spotify app", snapS:"Multiroom, in sync", firmware:"Firmware",
     restart:"Restart", restartAsk:"Tap again to restart", factory:"Reset settings", factoryAsk:"Tap again to reset", factorySub:"Keeps saved networks and AirPlay pairings",
-    saved:"Saved", failed:"Failed", offline:"The speaker does not answer", restarting:"Restarting…", picked:"Switched", signal:"signal", sys:"System", themeSystem:"System" },
-  cs: { control:"Ovládání", settings:"Nastavení", idle:"Nic nehraje", idleSub:"Na telefonu nebo počítači vyber Zeppelin Air jako výstup v AirPlay.",
-    playing:"Hraje", ready:"Připraveno", off:"Vypnuto", volume:"Hlasitost", receivers:"Přijímače", appearance:"Vzhled", system:"Systém", light:"Světlý", dark:"Tmavý",
-    language:"Jazyk", general:"Obecné", name:"Název", nameSub:"Jak se repro hlásí na síti", network:"Síť", ethernet:"Ethernet", wifi:"Wi-Fi",
-    connectedTo:"Připojeno k", notConnected:"Nepřipojeno", noCable:"Bez kabelu", ip:"Adresa", mask:"Adresa / prefix", gateway:"Brána", dns:"DNS",
-    staticIp:"Pevná IP", fromDhcp:"z DHCP", save:"Uložit", known:"Známé sítě", forget:"Zapomenout", addNet:"Přidat síť", ssid:"Název sítě",
-    pass:"Heslo (prázdné: otevřená síť)", add:"Přidat", airplayS:"Zařízení Apple", spotifyS:"Aplikace Spotify", snapS:"Multiroom, synchronně", firmware:"Firmware",
-    restart:"Restartovat", restartAsk:"Klepni znovu pro restart", factory:"Obnovit nastavení", factoryAsk:"Klepni znovu pro obnovení", factorySub:"Uložené sítě a spárování AirPlay zůstanou",
-    saved:"Uloženo", failed:"Nepovedlo se", offline:"Repro neodpovídá", restarting:"Restartuje se…", picked:"Přepnuto", signal:"signál", sys:"Systém", themeSystem:"Systém" }
+    saved:"Saved", failed:"Failed", offline:"The speaker does not answer", restarting:"Restarting…", picked:"Switched", notConn:"Not connected", selected:"Selected", waiting:"Waiting for audio", waitingSub:"is selected. Start playback on the sender.", noInputs:"No input is available. Turn a receiver on in Settings or connect a cable.", inputs:"Inputs", sound:"Sound", bass:"Bass", presets:"Music type", pSpeech:"Speech", pClassical:"Classical", pJazz:"Jazz / Acoustic", pPop:"Pop / Rock", custom:"Custom", auxN:"Optical / AUX", usbS:"Computer (USB)", auxS:"Line input", fromComputer:"Playing from the computer", fromAux:"Playing from the line input", active:"Active", idleIn:"Idle", by:"Source", signal:"signal", sys:"System", themeSystem:"System" },
 };
-const LANGS = [["en","English"],["cs","Čeština"]];
 const RECV = [{id:"airplay",name:"AirPlay 2",sub:"airplayS"},{id:"spotify",name:"Spotify Connect",sub:"spotifyS"},{id:"snapcast",name:"Snapcast",sub:"snapS"}];
+const INPUTS = RECV.map(r => ({...r, recv:true})).concat([{id:"usb",name:"USB",sub:"usbS"},{id:"aux",name:"Optical / AUX",nameKey:"auxN",sub:"auxS"}]);
+const GLYPH = {
+  airplay:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 15h12L12 7 6 15zm6 1l3 4H9l3-4z"/></svg>',
+  spotify:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="9"/><path d="M7 9.5c3.5-1 7-.6 10 1M7.5 12.5c3-.8 6-.5 8.5 1M8 15.3c2.4-.6 4.6-.4 6.6.7" fill="none" stroke="var(--surface-2)" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  snapcast:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 9h3l4-4v14l-4-4H4V9zm12.5 3a4 4 0 00-2-3.5l1-1.7a6 6 0 010 10.4l-1-1.7a4 4 0 002-3.5z"/></svg>',
+  usb:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 4h-2v9.2a2 2 0 11-2 0V6H9l3-4zM7 11a2 2 0 110 4 2 2 0 010-4zm10-2a1.5 1.5 0 110 3 1.5 1.5 0 010-3z"/></svg>',
+  aux:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a2 2 0 012 2v9.5a5 5 0 11-4 0V4a2 2 0 012-2z"/></svg>' };
 const ETH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="12" rx="2"/><path d="M8 17v2M12 17v2M16 17v2M8 9v4M12 9v4M16 9v4"/></svg>';
 const WIFI = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 9a14 14 0 0119 0M5.5 12.5a9.5 9.5 0 0113 0M8.6 16a5 5 0 016.8 0"/><circle cx="12" cy="19.2" r="1" fill="currentColor"/></svg>';
 const THEME_ICONS = {
@@ -250,8 +274,8 @@ const THEME_ICONS = {
   light:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>',
   dark:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/></svg>' };
 const $ = id => document.getElementById(id);
-let lang = "en", theme = "system", st = {}, cfg = {}, nets = [], pendingStatic = {eth:false, wifi:false}, volT = 0, volTm, askT = {}, offlineShown = false, hue = 200;
-const t = k => (T[lang] && T[lang][k]) || T.en[k] || k;
+let theme = "system", st = {}, cfg = {}, nets = [], pendingStatic = {eth:false, wifi:false}, volT = 0, volTm, askT = {}, offlineShown = false, hue = 200;
+const t = k => T.en[k] || k;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 async function api(path, data) {
@@ -266,7 +290,25 @@ async function save(key, value, quiet) { try { await api("/api/set", {key, value
 
 /* ---- theme and language ---- */
 function applyTheme(x) { theme = x; const r = document.documentElement; if (x === "system") r.removeAttribute("data-theme"); else r.setAttribute("data-theme", x); try { localStorage.setItem("zair-theme", x); } catch (e) {} $("themebtn").innerHTML = THEME_ICONS[x]; }
-function applyLang(x) { lang = x; try { localStorage.setItem("zair-lang", x); } catch (e) {} document.documentElement.lang = x; renderAll(true); }
+
+
+/* ---- sound: the DSP has five bass presets (stock: Bass 0, +1, -1, -2, -3), and no other tone control ---- */
+const BASS = [{v:-3, p:4}, {v:-2, p:3}, {v:-1, p:2}, {v:0, p:0}, {v:1, p:1}];
+const levelOf = p => (BASS.find(b => b.p === p) || BASS[3]).v;
+const fmt = v => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v);
+let bassT = 0, bassTm;
+function renderSound() {
+  const L = st.live || {}, v = levelOf(typeof L.bass === "number" ? L.bass : 0), idx = BASS.findIndex(b => b.v === v);
+  $("sound").innerHTML = `<div class="vol-top"><span class="lbl">${t("sound")}</span><span class="pct">${t("bass")} ${fmt(v)}</span></div>
+    <div class="bassrow"><span>−3</span><input class="lvl" type="range" id="bass" min="0" max="4" step="1" value="${idx}" style="--p:${idx * 25}%" aria-label="${t("bass")}"><span>+1</span></div>`;
+  $("bass").oninput = e => setBass(BASS[+e.target.value].v);
+}
+function setBass(v) {
+  bassT = Date.now();
+  st.live = Object.assign({}, st.live, { bass: BASS.find(b => b.v === v).p });
+  renderSound();
+  clearTimeout(bassTm); bassTm = setTimeout(() => api("/api/bass", {value: BASS.find(b => b.v === v).p}).catch(() => {}), 150);
+}
 
 /* ---- header and control ---- */
 function renderHeader() {
@@ -276,19 +318,29 @@ function renderHeader() {
   const chip = (icon, ip, label) => `<span class="ipchip ${ip ? "" : "off"}">${icon}<span>${esc(ip || label)}</span></span>`;
   $("ips").innerHTML = chip(ETH, L.eth, t("noCable")) + chip(WIFI, L.wifi, t("notConnected"));
   $("tab-control").textContent = t("control"); $("tab-settings").textContent = t("settings");
-  $("t-volume").textContent = t("volume"); $("t-receivers").textContent = t("receivers");
+  $("t-volume").textContent = t("volume"); $("t-receivers").textContent = t("inputs");
 }
 function renderControl() {
-  const L = st.live || {}, playing = !!L.playing && L.front_name, r = RECV.find(x => x.id === L.front_name);
+  const L = st.live || {}, n = (L.active === "airplay" ? L.now : null) || {};
+  const active = L.active || (L.playing && L.front_name) || "", inp = INPUTS.find(x => x.id === active), playing = !!active && (L.playing || L.active === "usb" || L.active === "aux");
+  const front = INPUTS.find(x => x.id === L.front_name && x.recv && !playing);
+  const nm = x => (x && x.nameKey) ? t(x.nameKey) : (x ? x.name : "");
+  const title = n.title || (active === "usb" ? t("fromComputer") : active === "aux" ? t("fromAux") : inp ? nm(inp) : "");
+  const sub = [n.artist, n.album].filter(Boolean).join(" · ");
+  const art = n.cover ? `<img src="${esc(n.cover)}" alt="">` : (GLYPH[active] || "");
   $("now").innerHTML = playing
-    ? `<span class="np-src"><span class="pin"></span><span>${esc(r ? r.name : L.front_name)} · ${t("playing")}</span></span><p class="np-title">${esc(r ? r.name : L.front_name)}</p>`
+    ? `<div class="np-main"><div class="art">${art}</div><div class="np-text"><span class="np-src"><span class="pin"></span><span>${esc(inp ? nm(inp) : active)} · ${t("playing")}</span></span>
+         <p class="np-title">${esc(title)}</p>${sub ? `<p class="np-sub">${esc(sub)}</p>` : ""}</div></div>`
+    : front ? `<div class="np-idle"><p class="np-title">${t("waiting")}</p><p class="np-sub">${esc(nm(front))} ${t("waitingSub")}</p></div>`
     : `<div class="np-idle"><p class="np-title">${t("idle")}</p><p class="np-sub">${t("idleSub")}</p></div>`;
-  $("receivers").innerHTML = RECV.map(x => {
-    const on = cfg[x.id] !== "off", active = playing && L.front_name === x.id;
-    return `<button class="src-row ${on ? "" : "dim"}" aria-current="${active}" data-pick="${x.id}" ${on ? "" : "disabled"}>
-      <span class="glyph">${x.id[0].toUpperCase()}</span><span><span class="nm">${x.name}</span><div class="st">${active ? t("playing") : on ? t("ready") : t("off")} · ${t(x.sub)}</div></span>
+  const usable = INPUTS.filter(x => x.recv ? cfg[x.id] !== "off" : !!L[x.id]);   // only what can be used: enabled receivers, connected wired inputs
+  $("receivers").innerHTML = usable.length ? usable.map(x => {
+    const isAct = playing && active === x.id;
+    return `<button class="src-row" aria-current="${isAct || (front && front.id === x.id)}" data-pick="${x.id}">
+      <span class="glyph">${GLYPH[x.id]}</span><span><span class="nm">${nm(x)}</span><div class="st">${isAct ? t("playing") : (front && front.id === x.id) ? t("selected") : t("ready")} · ${t(x.sub)}</div></span>
       <svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5L20 6"/></svg></button>`;
-  }).join("");
+  }).join("") : `<div class="empty">${t("noInputs")}</div>`;
+  if (Date.now() - bassT > 2000) renderSound();
   if (Date.now() - volT > 2000 && typeof L.volume === "number" && L.volume > 0) setVol(L.volume);
 }
 function setVol(v) { $("vol").value = v; $("volout").textContent = v; $("vol").style.setProperty("--p", v + "%"); }
@@ -299,44 +351,52 @@ function showTick() {
 }
 
 /* ---- settings ---- */
-function ipBlock(k) {
-  const L = st.live || {}, mode = cfg[k + ".mode"] || "dhcp", stat = mode === "static" || pendingStatic[k], live = k === "eth" ? L.eth : L.wifi;
-  const val = key => esc(stat ? (cfg[k + "." + key] || "") : "");
-  return `<div class="set-row"><div><div class="k">${t("ip")}</div></div><div class="v"><div class="seg mini">
-      <button aria-selected="${!stat}" data-mode="${k}:dhcp">DHCP</button><button aria-selected="${stat}" data-mode="${k}:static">${t("staticIp")}</button></div></div></div>
-    <div class="static-ip">
-      <div class="full"><label>${t("mask")}</label><input class="inp ip" id="${k}-address" ${stat ? "" : "disabled"} value="${stat ? val("address") : esc(live || "")}" placeholder="192.168.2.50/24"></div>
-      <div><label>${t("gateway")}</label><input class="inp ip" id="${k}-gateway" ${stat ? "" : "disabled"} value="${val("gateway")}" placeholder="${stat ? "" : t("fromDhcp")}"></div>
-      <div><label>${t("dns")}</label><input class="inp ip" id="${k}-dns" ${stat ? "" : "disabled"} value="${val("dns")}" placeholder="${stat ? "" : t("fromDhcp")}"></div>
-      ${stat ? `<div class="full"><button class="btn" data-save-ip="${k}">${t("save")}</button></div>` : ""}
-    </div>`;
+function isStatic(k) { return (cfg[k + ".mode"] || "dhcp") === "static" || pendingStatic[k]; }
+function ipHead(k, title, sub) {
+  const stat = isStatic(k);
+  return `<div class="set-row"><div><div class="k">${title}</div><div class="sub">${sub}</div></div><div class="v"><div class="seg mini">
+      <button aria-selected="${!stat}" data-mode="${k}:dhcp">DHCP</button><button aria-selected="${stat}" data-mode="${k}:static">${t("staticIp")}</button></div></div></div>`;
+}
+function ipFields(k) {
+  if (!isStatic(k)) return "";
+  const v = key => esc(cfg[k + "." + key] || "");
+  return `<div class="static-ip">
+      <div class="full"><label>${t("mask")}</label><input class="inp ip" id="${k}-address" value="${v("address")}" placeholder="192.168.2.50/24"></div>
+      <div><label>${t("gateway")}</label><input class="inp ip" id="${k}-gateway" value="${v("gateway")}"></div>
+      <div><label>${t("dns")}</label><input class="inp ip" id="${k}-dns" value="${v("dns")}"></div>
+      <div class="full"><button class="btn" data-save-ip="${k}">${t("save")}</button></div></div>`;
 }
 function renderSettings() {
   const e = $("settings"), a = document.activeElement;
   if (a && e.contains(a) && /INPUT|SELECT/.test(a.tagName) && a.type !== "checkbox") return;
   const L = st.live || {}, sw = id => `<button class="sw" data-recv="${id}" aria-checked="${cfg[id] !== "off"}"></button>`;
-  const cur = L.ssid ? `${t("connectedTo")} ${esc(L.ssid)} · −${L.signal || "?"} dBm` : t("notConnected");
+  const ethSub = L.eth ? esc(L.eth) : t("noCable");
+  const wifiSub = L.ssid ? `${t("connectedTo")} ${esc(L.ssid)} · −${L.signal || "?"} dBm${L.wifi ? " · " + esc(L.wifi) : ""}` : t("notConnected");
   e.innerHTML = `
-  <section><p class="eyebrow">${t("appearance")}</p><div class="card pad"><div class="seg">
-    <button aria-selected="${theme === "system"}" data-theme="system">${t("themeSystem")}</button><button aria-selected="${theme === "light"}" data-theme="light">${t("light")}</button><button aria-selected="${theme === "dark"}" data-theme="dark">${t("dark")}</button></div></div>
-    <div class="card set" style="margin-top:10px"><div class="set-row"><div class="k">${t("language")}</div><div class="v"><select class="inp" id="lang-sel">${LANGS.map(l => `<option value="${l[0]}" ${l[0] === lang ? "selected" : ""}>${l[1]}</option>`).join("")}</select></div></div></div></section>
-  <section><p class="eyebrow">${t("general")}</p><div class="card set"><div class="set-row"><div><div class="k">${t("name")}</div><div class="sub">${t("nameSub")}</div></div>
-    <div class="v"><input class="inp name" id="devname" value="${esc(st.name || "")}"></div></div></div></section>
-  <section><p class="eyebrow">${t("ethernet")}</p><div class="card set"><div class="set-row"><div><div class="k">${t("ethernet")}</div><div class="sub">${esc(L.eth || t("noCable"))}</div></div></div>${ipBlock("eth")}</div></section>
-  <section><p class="eyebrow">${t("wifi")}</p><div class="card set">
-    <div class="set-row"><div><div class="k">${t("wifi")}</div><div class="sub">${cur}</div></div></div>
-    ${nets.length ? nets.map(n => `<div class="set-row"><div class="k">${esc(n)}</div><div class="v"><button class="btn" data-forget="${esc(n)}">${t("forget")}</button></div></div>`).join("") : `<div class="empty">${t("notConnected")}</div>`}
-    ${ipBlock("wifi")}
-    <div class="set-row"><div class="k">${t("addNet")}</div></div>
-    <div class="net-form"><input class="inp" id="n-ssid" placeholder="${t("ssid")}" autocomplete="off"><input class="inp" id="n-pass" type="password" placeholder="${t("pass")}" autocomplete="new-password"><div><button class="btn" id="n-add">${t("add")}</button></div></div>
-  </div></section>
-  <section><p class="eyebrow">${t("receivers")}</p><div class="card set">${RECV.map(x => `<div class="set-row"><div><div class="k">${x.name}</div><div class="sub">${t(x.sub)}</div></div><div class="v">${sw(x.id)}</div></div>`).join("")}</div></section>
-  <section><p class="eyebrow">${t("sys")}</p><div class="card set">
-    <div class="set-row"><div><div class="k">${t("firmware")}</div></div><div class="v">${esc(st.firmware || "")}</div></div>
-    <div class="set-row"><div class="k">${t("restart")}</div><div class="v"><button class="btn" data-act="restart">${askT.restart ? t("restartAsk") : t("restart")}</button></div></div>
-    <div class="set-row"><div><div class="k">${t("factory")}</div><div class="sub">${t("factorySub")}</div></div><div class="v"><button class="btn danger" data-act="reset">${askT.reset ? t("factoryAsk") : t("factory")}</button></div></div>
-  </div></section>`;
-  $("lang-sel").onchange = ev => applyLang(ev.target.value);
+  <div class="col">
+    <section class="s-app"><p class="eyebrow">${t("appearance")}</p><div class="card pad"><div class="seg">
+      <button aria-selected="${theme === "system"}" data-theme="system">${t("themeSystem")}</button><button aria-selected="${theme === "light"}" data-theme="light">${t("light")}</button><button aria-selected="${theme === "dark"}" data-theme="dark">${t("dark")}</button></div></div>
+    </section>
+    <section class="s-gen"><p class="eyebrow">${t("general")}</p><div class="card set"><div class="set-row"><div><div class="k">${t("name")}</div><div class="sub">${t("nameSub")}</div></div>
+      <div class="v"><input class="inp name" id="devname" value="${esc(st.name || "")}"></div></div></div></section>
+    <section class="s-rec"><p class="eyebrow">${t("receivers")}</p><div class="card set">${RECV.map(x => `<div class="set-row"><div><div class="k">${x.name}</div><div class="sub">${t(x.sub)}</div></div><div class="v">${sw(x.id)}</div></div>`).join("")}</div></section>
+    <section class="s-sys"><p class="eyebrow">${t("sys")}</p><div class="card set">
+      <div class="set-row"><div><div class="k">${t("firmware")}</div></div><div class="v">${esc(st.firmware || "")}</div></div>
+      <div class="set-row"><div class="k">${t("restart")}</div><div class="v"><button class="btn" data-act="restart">${askT.restart ? t("restartAsk") : t("restart")}</button></div></div>
+      <div class="set-row"><div><div class="k">${t("factory")}</div><div class="sub">${t("factorySub")}</div></div><div class="v"><button class="btn danger" data-act="reset">${askT.reset ? t("factoryAsk") : t("factory")}</button></div></div>
+    </div></section>
+  </div>
+  <div class="col">
+    <section class="s-net"><p class="eyebrow">${t("network")}</p>
+      <div class="card set">${ipHead("eth", t("ethernet"), ethSub)}${ipFields("eth")}</div>
+      <div class="card set" style="margin-top:12px">${ipHead("wifi", t("wifi"), wifiSub)}${ipFields("wifi")}
+        <div class="set-row"><div class="k">${t("known")}</div></div>
+        ${nets.length ? nets.map(n => `<div class="set-row"><div class="k">${esc(n)}</div><div class="v"><button class="btn" data-forget="${esc(n)}">${t("forget")}</button></div></div>`).join("") : `<div class="empty">${t("noNets")}</div>`}
+        <div class="set-row"><div class="k">${t("addNet")}</div></div>
+        <div class="net-form"><input class="inp" id="n-ssid" placeholder="${t("ssid")}" autocomplete="off"><input class="inp" id="n-pass" type="password" placeholder="${t("pass")}" autocomplete="new-password"><div><button class="btn" id="n-add">${t("add")}</button></div></div>
+      </div>
+    </section>
+  </div>`;
   $("devname").onchange = async ev => { if (await save("name", ev.target.value.trim())) refresh(); };
   $("n-add").onclick = async () => {
     const ssid = $("n-ssid").value.trim(), passphrase = $("n-pass").value;
@@ -388,10 +448,9 @@ $("vplus").onclick = () => sendVol(Math.min(100, +$("vol").value + 5));
 $("themebtn").onclick = () => { applyTheme({system:"light", light:"dark", dark:"system"}[theme]); if (!$("settings").hidden) renderSettings(); };
 
 (function init() {
-  let th = "system", lg = "en";
-  try { th = localStorage.getItem("zair-theme") || "system"; lg = localStorage.getItem("zair-lang") || "en"; } catch (e) {}
-  if (!T[lg]) lg = "en";
-  lang = lg; applyTheme(th); renderAll(true);
+  let th = "system";
+  try { th = localStorage.getItem("zair-theme") || "system"; } catch (e) {}
+  applyTheme(th); renderAll(true);
   refresh();
   setInterval(() => refresh(false), 2000);
   setInterval(() => refresh(true), 15000);

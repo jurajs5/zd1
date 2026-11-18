@@ -26,6 +26,25 @@ switching misbehaved afterwards, so it was dropped and is not part of 0.1.)
   shows it holds the mute for 500 ms and waits for the new input to report locked; that is the
   fix slated for 0.2.
 
+## 0.4.1 — control panel: inputs, now playing, bass (MCU + module)
+
+The panel now matches the approved design (English only). The MCU and the module change together:
+
+- **Inputs list shows only what can be used:** receivers that are on, and USB / Optical-AUX only while a cable / plug is
+  there. USB and AUX can be picked from the panel (the MCU refuses one that is not there). A receiver that is picked
+  but silent shows as *Selected* with "Waiting for audio".
+- **MCU -> module (0xD2 flags, byte [3]):** bit 0 the module is the input (as before), bits 1-2 the wired source in use
+  (1 USB, 2 AUX), bits 3-5 the bass preset (0..4), bit 6 a USB cable, bit 7 an AUX plug. Refreshed every 250 ms, written
+  only on a change. Local to our OS and MCU, not in the generated protocol spec yet.
+- **Module -> MCU:** 0xC0 (pick) `0x10` USB / `0x11` AUX next to the receivers 0..4; 0xD4 `[0]` a volume step (`0xFF`:
+  none), `[1]` a bass preset + 1 (0: none). `zd1-linkd` gets `bass N` and `intent usb|aux` on its socket and the status
+  line gains `active`, `bass`, `usb`, `aux`.
+- **Now playing (AirPlay):** `zd1-airplay` writes the sender's title / artist / album and the cover to `/run/zd1`
+  (RAM), the panel shows them with the cover (`/api/cover`); it clears them when the session ends. Depends on what the
+  sender sends (AirPlay 1 sends DMAP metadata; check what an AirPlay 2 sender gives).
+- **Sound:** a bass slider −3..+1 (stock's five presets; the DSP has no other tone control).
+- No Czech, no music-type presets. Includes 0.4 and 0.3.1.
+
 ## 0.4 — the speaker's control panel (web), on port 80
 
 A page served by the speaker itself (`zd1-webd`, `module/os/apps/zd1-webd`), reachable by IP

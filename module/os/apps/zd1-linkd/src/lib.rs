@@ -151,6 +151,13 @@ struct Speaker {
     step: u8,
     cap: u8,
     input: bool,
+    /// The wired source in use: 1 USB, 2 AUX, 0 none (0xD2 [3] bits 1-2).
+    src: u8,
+    /// The bass preset 0..4 (0xD2 [3] bits 3-5).
+    bass: u8,
+    /// A USB host's cable, an AUX plug (0xD2 [3] bits 6, 7).
+    usb: bool,
+    aux: bool,
 }
 
 struct App {
@@ -268,7 +275,15 @@ impl App {
         if p.len() < 4 || p[0] < native::PROTO {
             return;
         }
-        let sp = Speaker { step: p[1], cap: p[2], input: p[3] & native::INPUT != 0 };
+        let sp = Speaker {
+            step: p[1],
+            cap: p[2],
+            input: p[3] & native::INPUT != 0,
+            src: (p[3] >> 1) & 3,
+            bass: (p[3] >> 3) & 7,
+            usb: p[3] & 0x40 != 0,
+            aux: p[3] & 0x80 != 0,
+        };
         let was = self.speaker.replace(sp);
         if was.map(|w| w.input) != Some(sp.input) {
             self.audio_on = sp.input;
@@ -551,6 +566,14 @@ impl App {
     /// A receiver picked on a phone or in an app (`intent SOURCE`): in front, the others pause, and the MCU is told
     /// (0xC0) so it switches to the module at once and says so.
     fn intent(&mut self, src: &str) {
+        // the web panel picks a wired source: the MCU switches if it is there (0xC0 [0] = 0x10 USB, 0x11 AUX); the
+        // receivers pause on their own, as the speaker leaves the module's input (`audio off`)
+        if src == "usb" || src == "aux" {
+            self.say(&format!("[zd1-linkd] {src} picked\n"));
+            self.intents = self.intents.wrapping_add(1);
+            self.notify(reg::INTENT, &[if src == "usb" { 0x10 } else { 0x11 }, self.intents]);
+            return;
+        }
         let who = player::from_source(src);
         self.say(&format!("[zd1-linkd] {src} picked\n"));
         if self.owner.as_deref().is_some_and(|o| o != src) {
@@ -598,13 +621,33 @@ impl App {
         let (front, fstate) = self.front;
         let playing = fstate == player::PLAYING;
         let input = self.speaker.is_some_and(|sp| sp.input);
+        let (src, bass, usb, aux) = self.speaker.map_or(("", 0, false, false), |sp| {
+            (
+                match sp.src {
+                    1 => "usb",
+                    2 => "aux",
+                    _ => "",
+                },
+                sp.bass,
+                sp.usb,
+                sp.aux,
+            )
+        });
         let front_name = player::source_name(front).unwrap_or("");
+        // the input in use: a wired one the MCU names, else the receiver that plays
+        let active = if !src.is_empty() {
+            src
+        } else if playing && input {
+            front_name
+        } else {
+            ""
+        };
         let (ssid, signal) = {
             let w = self.wifi.lock().unwrap();
             (json_str(&w.ssid), w.signal)
         };
         format!(
-            "status {{\"volume\":{vol},\"source\":\"{source}\",\"front\":{front},\"front_name\":\"{front_name}\",\"playing\":{playing},\"input\":{input},\"eth\":\"{}\",\"eth_link\":{},\"wifi\":\"{}\",\"ssid\":{ssid},\"signal\":{signal}}}\n",
+            "status {{\"volume\":{vol},\"source\":\"{source}\",\"front\":{front},\"front_name\":\"{front_name}\",\"playing\":{playing},\"input\":{input},\"active\":\"{active}\",\"bass\":{bass},\"usb\":{usb},\"aux\":{aux},\"eth\":\"{}\",\"eth_link\":{},\"wifi\":\"{}\",\"ssid\":{ssid},\"signal\":{signal}}}\n",
             self.net.eth, self.net.eth_link, self.net.wifi
         )
     }
@@ -614,6 +657,14 @@ impl App {
         let (cmd, arg) = line.split_once(' ').unwrap_or((line, ""));
         match cmd {
             "intent" => self.intent(arg.trim()),
+            "bass" => {
+                // `bass N`: a bass preset 0..4 to the MCU (0xD4 [1] = N + 1; [0] = 0xFF: no volume change)
+                if let Ok(n) = arg.trim().parse::<u8>() {
+                    if n <= 4 {
+                        self.notify(reg::VOLUME_SET, &[0xFF, n + 1]);
+                    }
+                }
+            }
             "session" => {
                 // `session on|off SOURCE`: a sender connected / gone
                 let (on, src) = arg.split_once(' ').unwrap_or((arg, "app"));

@@ -27,7 +27,7 @@ static uint32_t source_amp_idle_ms(void) { return (uint32_t)g_settings.amp_idle_
 /* a source switch mutes the amp first; keep it muted this long before the unmute, so the input-mux glitch and the
  * DAC's soft-mute ramp die out while silent (no speaker pop). Stock holds 500 ms (its timer 0x32, FUN_8001332c: armed
  * when the new input reports ready, then FUN_80013a68 unmutes the amp, the DAC, and ramps) */
-#define SWITCH_SETTLE_MS 80 /* 0.1's value; 0.2 tried stock's 500 ms, which the user found too slow */
+#define SWITCH_SETTLE_MS 80   /* 0.1's value; 0.2 tried stock's 500 ms, which the user found too slow */
 #define USER_GUARD_MS    8000 /* after a source picked by hand, nothing switches by itself */
 /* a USB stream takes the speaker (or wakes it) after sounding this long without a break, so that a system sound
  * doesn't (an alert lasts up to ~1.4 s [HW 2026-10-27]) */
@@ -111,6 +111,7 @@ static bool sounding(source_t s) {
 }
 /* Is the source there, as a person sees it (playing or not)? A cable or a plug in; on the module a sender connected
  * (our OS lists them, reg 0xC6). */
+bool source_present(source_t s) { return present(s); }
 static bool connected(source_t s) {
     switch (s) {
     case SRC_USB:
@@ -801,6 +802,13 @@ void source_poll(uint32_t now) {
         int32_t v = dsp_level();
         if (v >= 0)
             vis_level = v; /* a failed read keeps the last */
+    }
+    {
+        static uint32_t t_snap;
+        if (tick_after(now, t_snap + 250)) {
+            t_snap = now;
+            wifi_refresh();
+        }
     }
     auto_switch(now);
     settle(now);

@@ -23,4 +23,5 @@ uint8_t wifi_sessions(void);         /* our OS's receivers with a sender connect
 const char *wifi_player_name(uint8_t player); /* ZD1_PLAYER_*, for the log */
 void wifi_select(uint8_t player); /* a receiver chosen on the speaker: it resumes, the others pause (0xC2) */
 int wifi_pending_volume(void);    /* a volume the module asked for that waits for it to be the input, -1 = none */
+void wifi_refresh(void); /* the module's snapshot again (the active source, plugs, bass): writes only on a change */
 #endif
