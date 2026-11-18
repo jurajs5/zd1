@@ -78,6 +78,14 @@ impl AudioHandler for Handler {
     fn audio_init(&self, format: AudioFormat) -> Box<dyn AudioSession> {
         let bits = if format.format == SampleFormat::S32 { 32 } else { 16 };
         tracing::info!(rate = format.sample_rate, channels = format.channels, bits, "stream");
+        if self.speaker.yielded() {
+            // a sender that starts (again) to play while we are still yielded to another source (one that was picked
+            // and never played: Spotify's refused key leaves no `resume`, and the sender's play in the same session
+            // is no new `session set up`) is a person choosing this speaker: say so, and zd1-linkd's `yield` back to
+            // us drops the stale yield (zd1-audio's speaker.rs)
+            tracing::info!("a stream starts while yielded: picked again");
+            self.speaker.intent();
+        }
         let stream = self.out.start_stream(format.sample_rate, format.channels, bits);
         Box::new(Session { out: self.out.clone(), stream })
     }

@@ -26,6 +26,15 @@ switching misbehaved afterwards, so it was dropped and is not part of 0.1.)
   shows it holds the mute for 500 ms and waits for the new input to report locked; that is the
   fix slated for 0.2.
 
+## 0.3.1 — AirPlay's play in the same session also drops a stale yield
+
+0.3's fix only ran on a fresh pick (`intent`). Tested on the unit: after a Spotify pick (refused key)
+the iPhone paused AirPlay (our `yield` pause) and its next play started a new stream in the SAME
+session, with no new `session set up` and so no `intent`: still silent (`Audio session initialized`,
+no `speaker state="playing"`). `zd1-airplay` now says `intent` when a stream starts while the
+receiver is `yielded`, which brings back the `yield` to itself that 0.3 already handles.
+Spotify with the 0.3 device id and on another VLAN: the audio key is still refused (`0 1`).
+
 ## 0.3 — AirPlay no longer stays silent after a failed Spotify; a new Spotify device id
 
 Module only (`mcu/` is 0.2.1's: switch hold 80 ms, cap default 71).
