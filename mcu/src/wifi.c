@@ -51,7 +51,7 @@ void wifi_select(uint8_t p) {
 static void snapshot(bool always) {
     if (!dm870_native())
         return;
-    /* [3]: bit 0 the module is the input (ZD1_NATIVE_INPUT); bits 1-2 the wired source in use (1 USB, 2 AUX, else 0); bits
+    /* [2]: the highest step the module may ask (0..71) | 0x80 when the light show is off. [3]: bit 0 the module is the input (ZD1_NATIVE_INPUT); bits 1-2 the wired source in use (1 USB, 2 AUX, else 0); bits
      * 3-5 the bass preset (0..4); bit 6 a USB host's cable, bit 7 an AUX plug. Local to our OS and this firmware: not in the
      * generated spec yet. */
     source_t cur = source_state() == SYS_RUN ? source_current() : SRC_NONE;
@@ -63,7 +63,7 @@ static void snapshot(bool always) {
                               ((g_settings.bass & 7) << 3) | (source_present(SRC_USB) ? 0x40 : 0) |
                               (source_present(SRC_AUX) ? 0x80 : 0));
     uint8_t s[4] = {ZD1_NATIVE_PROTO, (uint8_t)(mod_step >= 0 && !input ? mod_step : g_settings.vol_step),
-                    usbaudio_volmax(), flags};
+                    (uint8_t)(usbaudio_volmax() | (g_settings.flags & SETTINGS_NO_SHOW ? 0x80 : 0)), flags};
     if (!always && !memcmp(s, shown, sizeof s))
         return;
     memcpy(shown, s, sizeof s);
@@ -153,6 +153,14 @@ void wifi_notify(uint8_t reg, const uint8_t *b, uint16_t n) {
         if (dm870_native() && n >= 1) {
             if (b0 != 0xFF)
                 module_volume(b0);
+            if (b1 == 0x10 || b1 == 0x11) { /* the light show on / off (the web panel) */
+                if (b1 == 0x11)
+                    g_settings.flags |= SETTINGS_NO_SHOW;
+                else
+                    g_settings.flags &= (uint8_t)~SETTINGS_NO_SHOW;
+                settings_changed();
+                snapshot(true);
+            }
             if (b1 >= 1 && b1 <= BASS_MAX + 1) {
                 source_bass_set((uint8_t)(b1 - 1));
                 snapshot(true);

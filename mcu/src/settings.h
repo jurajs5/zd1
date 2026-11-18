@@ -25,6 +25,7 @@ typedef struct {
 #define SETTINGS_BOOT_TRY_SHIFT 2
 #define SETTINGS_AMP_LOCKED     0x10 /* the amp locked at every boot (the host link's Amp deny with keep); clear: allowed */
 #define SETTINGS_NO_AUTO_SWITCH 0x40 /* a USB stream doesn't take the speaker by itself */
+#define SETTINGS_NO_SHOW        0x20 /* the LED's light show off: only the input's colour (the web panel's switch, 0xD4) */
 
 #define SETTINGS_AMP_IDLE_DEFAULT 5 /* min, unless set (the host link's Prefs) */
 #define SETTINGS_AMP_IDLE_MIN     1

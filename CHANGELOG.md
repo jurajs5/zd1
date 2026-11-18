@@ -26,6 +26,18 @@ switching misbehaved afterwards, so it was dropped and is not part of 0.1.)
   shows it holds the mute for 500 ms and waits for the new input to report locked; that is the
   fix slated for 0.2.
 
+## 0.4.2 — the light show switch, and the panel's final layout
+
+- **Light show on / off** (panel, and the speaker's LED): off, the LED shows only the input's colour, steady (AirPlay
+  white, Spotify green, USB blue, AUX amber); on, the input's colour for 5 s after a switch and then the show. Kept in
+  the EEPROM (`SETTINGS_NO_SHOW` 0x20 in the flags byte), so it survives a restart. Module -> MCU: 0xD4 `[1]` = `0x10` on,
+  `0x11` off; MCU -> module: 0xD2 `[2]` bit 7 set = the show is off (the cap is 0..71, so bit 7 was free).
+  `zd1-linkd`: `show on|off`, `show` in the status line; the panel: `POST /api/show`.
+- **Panel layout (Control):** the light-show preview strip sits at the very top of the page (it stays in place when the
+  show is off); Now playing across the whole width; Volume, Bass and Light show on the left and the inputs on the
+  right, both columns aligned at the top; every panel has its heading over its card and one height; bass has − / +.
+- Includes 0.4.1.
+
 ## 0.4.1 — control panel: inputs, now playing, bass (MCU + module)
 
 The panel now matches the approved design (English only). The MCU and the module change together:

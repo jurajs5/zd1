@@ -121,6 +121,12 @@ fn route(method: &str, path: &str, body: &str) -> (&'static str, &'static str, S
         }
         ("POST", "/api/set") => outcome(set_value(form(body, "key"), form(body, "value"))),
         ("POST", "/api/action") => outcome(do_action(form(body, "key"), form(body, "value"))),
+        ("POST", "/api/show") => {
+            if let Some(v) = form(body, "value") {
+                linkd_send(if v.trim() == "off" { "show off" } else { "show on" });
+            }
+            ok()
+        }
         ("POST", "/api/bass") => {
             if let Some(v) = form(body, "value").and_then(|v| v.trim().parse::<u32>().ok()) {
                 linkd_send(&format!("bass {}", v.min(4)));

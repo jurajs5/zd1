@@ -158,6 +158,8 @@ struct Speaker {
     /// A USB host's cable, an AUX plug (0xD2 [3] bits 6, 7).
     usb: bool,
     aux: bool,
+    /// The LED's light show is on (0xD2 [2] bit 7 clear).
+    show: bool,
 }
 
 struct App {
@@ -277,12 +279,13 @@ impl App {
         }
         let sp = Speaker {
             step: p[1],
-            cap: p[2],
+            cap: p[2] & 0x7F,
             input: p[3] & native::INPUT != 0,
             src: (p[3] >> 1) & 3,
             bass: (p[3] >> 3) & 7,
             usb: p[3] & 0x40 != 0,
             aux: p[3] & 0x80 != 0,
+            show: p[2] & 0x80 == 0,
         };
         let was = self.speaker.replace(sp);
         if was.map(|w| w.input) != Some(sp.input) {
@@ -621,7 +624,7 @@ impl App {
         let (front, fstate) = self.front;
         let playing = fstate == player::PLAYING;
         let input = self.speaker.is_some_and(|sp| sp.input);
-        let (src, bass, usb, aux) = self.speaker.map_or(("", 0, false, false), |sp| {
+        let (src, bass, usb, aux, show) = self.speaker.map_or(("", 0, false, false, true), |sp| {
             (
                 match sp.src {
                     1 => "usb",
@@ -631,6 +634,7 @@ impl App {
                 sp.bass,
                 sp.usb,
                 sp.aux,
+                sp.show,
             )
         });
         let front_name = player::source_name(front).unwrap_or("");
@@ -647,7 +651,7 @@ impl App {
             (json_str(&w.ssid), w.signal)
         };
         format!(
-            "status {{\"volume\":{vol},\"source\":\"{source}\",\"front\":{front},\"front_name\":\"{front_name}\",\"playing\":{playing},\"input\":{input},\"active\":\"{active}\",\"bass\":{bass},\"usb\":{usb},\"aux\":{aux},\"eth\":\"{}\",\"eth_link\":{},\"wifi\":\"{}\",\"ssid\":{ssid},\"signal\":{signal}}}\n",
+            "status {{\"volume\":{vol},\"source\":\"{source}\",\"front\":{front},\"front_name\":\"{front_name}\",\"playing\":{playing},\"input\":{input},\"active\":\"{active}\",\"bass\":{bass},\"usb\":{usb},\"aux\":{aux},\"show\":{show},\"eth\":\"{}\",\"eth_link\":{},\"wifi\":\"{}\",\"ssid\":{ssid},\"signal\":{signal}}}\n",
             self.net.eth, self.net.eth_link, self.net.wifi
         )
     }
@@ -657,6 +661,14 @@ impl App {
         let (cmd, arg) = line.split_once(' ').unwrap_or((line, ""));
         match cmd {
             "intent" => self.intent(arg.trim()),
+            "show" => {
+                // `show on|off`: the LED's light show (0xD4 [1] = 0x10 on, 0x11 off; [0] = 0xFF: no volume change)
+                match arg.trim() {
+                    "on" => self.notify(reg::VOLUME_SET, &[0xFF, 0x10]),
+                    "off" => self.notify(reg::VOLUME_SET, &[0xFF, 0x11]),
+                    _ => {}
+                }
+            }
             "bass" => {
                 // `bass N`: a bass preset 0..4 to the MCU (0xD4 [1] = N + 1; [0] = 0xFF: no volume change)
                 if let Ok(n) = arg.trim().parse::<u8>() {

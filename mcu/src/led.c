@@ -221,6 +221,11 @@ static void show_tick(uint32_t now) {
 }
 /* each frame: run the 5 s intro -> show timer off the current look, and tick the show while it is on */
 static void show_update(uint32_t now) {
+    if (g_settings.flags & SETTINGS_NO_SHOW) { /* switched off: the look's own colour, steady (nothing else is drawn) */
+        show_src = show_player = 0xFF;
+        show_active = false;
+        return;
+    }
     bool run_playing = look.kind == LOOK_RUN && look.act == ACT_PLAYING;
     if (run_playing) {
         if (look.source != show_src || look.player != show_player) {
