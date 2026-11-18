@@ -3993,6 +3993,7 @@ dependencies = [
  "zd1-snapcast",
  "zd1-spotify",
  "zd1-update",
+ "zd1-webd",
 ]
 
 [[package]]
@@ -4279,6 +4280,14 @@ dependencies = [
  "libc",
  "sha2",
  "zd1-slot",
+ "zd1-sys",
+]
+
+[[package]]
+name = "zd1-webd"
+version = "0.1.0"
+dependencies = [
+ "zd1-settings",
  "zd1-sys",
 ]
 

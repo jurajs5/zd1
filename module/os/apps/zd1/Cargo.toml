@@ -9,7 +9,7 @@ description = "The module OS's Rust programs in one executable (busybox style): 
 default = ["full"]
 # everything beyond what the rescue runs (docs/module/storage.md): the system's services and the receivers. The
 # rescue's copy is the core alone: --no-default-features
-full = ["zd1-init/full", "dep:zd1-net", "dep:zd1-entropy", "dep:zd1-snapcast", "dep:zd1-airplay", "dep:zd1-spotify"]
+full = ["zd1-init/full", "dep:zd1-net", "dep:zd1-entropy", "dep:zd1-snapcast", "dep:zd1-airplay", "dep:zd1-spotify", "dep:zd1-webd"]
 # the system's debug build (os.toml [image.debug]): the self test, the memory shell, PersParam's raw reads, the MCU
 # link's request trace
 debug = ["full", "dep:zd1-selftest", "dep:zd1-memsh", "zd1-linkd/debug", "zd1-persparam/debug"]
@@ -33,3 +33,4 @@ zd1-memsh = { workspace = true, optional = true }
 zd1-snapcast = { workspace = true, optional = true }
 zd1-airplay = { workspace = true, optional = true }
 zd1-spotify = { workspace = true, optional = true }
+zd1-webd = { workspace = true, optional = true }

@@ -574,6 +574,20 @@ impl App {
         self.net = n;
     }
 
+    /// A one-line JSON snapshot for an app (zd1-web's `/api/status`): the volume, the source playing, the play state,
+    /// whether the module is the input, and the interface IPs.
+    fn status_line(&self) -> String {
+        let vol = self.volume.unwrap_or(0);
+        let source = self.owner.clone().unwrap_or_default();
+        let (front, fstate) = self.front;
+        let playing = fstate == player::PLAYING;
+        let input = self.speaker.is_some_and(|sp| sp.input);
+        format!(
+            "status {{\"volume\":{vol},\"source\":\"{source}\",\"front\":{front},\"playing\":{playing},\"input\":{input},\"eth\":\"{}\",\"wifi\":\"{}\"}}\n",
+            self.net.eth, self.net.wifi
+        )
+    }
+
     /// A line from an app (client `id`).
     fn command(&mut self, id: u64, line: &str) {
         let (cmd, arg) = line.split_once(' ').unwrap_or((line, ""));
@@ -635,6 +649,13 @@ impl App {
             "volume" => {
                 if let Ok(p) = arg.parse::<u32>() {
                     self.set_volume(id, p)
+                }
+            }
+            "status" => {
+                // a one-line snapshot for an app (zd1-web): `status {json}`
+                let line = self.status_line();
+                if let Some(c) = self.clients.iter_mut().find(|c| c.id == id) {
+                    let _ = c.s.write_all(line.as_bytes());
                 }
             }
             "log" => {
