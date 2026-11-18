@@ -229,7 +229,7 @@ core = [
   "zd1-update",
 ]
 rescue = ["init", "zd1-linkd", "zd1-ctl", "zd1-board", "zd1-persparam", "zd1-settings", "zd1-slot", "zd1-update"]
-bins = ["zd1-snapcast", "zd1-airplay", "zd1-spotify"]
+bins = ["zd1-snapcast", "zd1-airplay", "zd1-spotify", "zd1-webd"]
 debug = ["zd1-selftest", "zd1-memsh"]
 
 [boot]

@@ -100,6 +100,16 @@ pub const SERVICES: &[Service] = &[
         health: None,
     },
     Service {
+        name: "web",
+        about: "the web control & settings interface (zd1-web), port 80",
+        start: web,
+        stop: None,
+        lifetime: daemon(2000),
+        output: Output::Log,
+        settings: &[],
+        health: None,
+    },
+    Service {
         name: "debug",
         about: "a root shell on telnet 2323 and zd1-memsh on 23; only the MCU switches them on",
         start: debug,
@@ -368,6 +378,17 @@ fn airplay(c: &Ctx) -> Start {
 
 fn spotify(c: &Ctx) -> Start {
     receiver(c, "zd1-spotify", "zd1.nospotify", "spotify", ("--bitrate", "spotify.bitrate"))
+}
+
+/// The web control & settings interface: a small HTTP server on port 80. Off with `zd1.noweb`.
+fn web(c: &Ctx) -> Start {
+    if c.boot.switch("zd1.noweb") {
+        return Start::Off("off (zd1.noweb on the kernel command line)".into());
+    }
+    match installed("zd1-webd") {
+        Some(p) => run(&[&p]),
+        None => Start::Off("not in this image".into()),
+    }
 }
 
 /// A login-less root shell and, in the debug system, raw memory for anyone on the network: off unless the MCU switches

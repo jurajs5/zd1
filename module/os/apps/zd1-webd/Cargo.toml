@@ -1,0 +1,10 @@
+[package]
+name = "zd1-webd"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "The speaker's web control & settings interface: an HTTP server and a JSON API over zd1-linkd and zd1-settings"
+
+[dependencies]
+zd1-sys.workspace = true
+zd1-settings.workspace = true

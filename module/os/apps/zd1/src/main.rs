@@ -31,6 +31,8 @@ const PROGRAMS: &[(&str, fn())] = &[
     ("zd1-airplay", zd1_airplay::main),
     #[cfg(feature = "full")]
     ("zd1-spotify", zd1_spotify::main),
+    #[cfg(feature = "full")]
+    ("zd1-webd", zd1_webd::main),
     #[cfg(feature = "debug")]
     ("zd1-selftest", zd1_selftest::main),
     #[cfg(feature = "debug")]

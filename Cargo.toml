@@ -75,6 +75,7 @@ zd1-spotify = { path = "module/os/apps/zd1-spotify" }
 zd1-svc = { path = "module/os/apps/zd1-svc" }
 zd1-sys = { path = "module/os/apps/zd1-sys" }
 zd1-update = { path = "module/os/apps/zd1-update" }
+zd1-webd = { path = "module/os/apps/zd1-webd" }
 zd1-airplay = { path = "module/os/apps/zd1-airplay" }
 
 # our forks (module/os/forks.md)
