@@ -25,8 +25,9 @@ static uint32_t source_amp_idle_ms(void) { return (uint32_t)g_settings.amp_idle_
 /* ours */
 #define AMP_HOLD_MS 30000 /* standby: the supply stays on (muted) this long, so a quick wake doesn't cycle it */
 /* a source switch mutes the amp first; keep it muted this long before the unmute, so the input-mux glitch and the
- * DAC's soft-mute ramp die out while silent (no speaker pop) */
-#define SWITCH_SETTLE_MS 80
+ * DAC's soft-mute ramp die out while silent (no speaker pop). Stock holds 500 ms (its timer 0x32, FUN_8001332c: armed
+ * when the new input reports ready, then FUN_80013a68 unmutes the amp, the DAC, and ramps) */
+#define SWITCH_SETTLE_MS 500
 #define USER_GUARD_MS    8000 /* after a source picked by hand, nothing switches by itself */
 /* a USB stream takes the speaker (or wakes it) after sounding this long without a break, so that a system sound
  * doesn't (an alert lasts up to ~1.4 s [HW 2026-10-27]) */
@@ -405,7 +406,7 @@ void source_init(void) {
 }
 
 /* Every volume change comes here: the keys, the remote, the host link, the USB host, the module. The volume cap
- * (Prefs, 40 unless set) is the one limit on all of them; the heat cap (protect.c) holds the volume lower while hot.
+ * (Prefs, 71 unless set) is the one limit on all of them; the heat cap (protect.c) holds the volume lower while hot.
  * flash: LED feedback (keys, IR, the host link's Key; not the USB host or AirPlay). */
 static void volume_step(int delta, bool flash) {
     int v = (int)g_settings.vol_step + delta, max = g_settings.vol_cap;

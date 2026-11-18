@@ -98,7 +98,7 @@ The host link's side of `zd1 --help`, each a typed request or a few; `zd1 COMMAN
 | `info`, `diag`, `hello`, `log [-f]` | the state at a glance; internals (protections, audio path, USB audio, the module's link, the last IR frame); the version (answered from the interrupt); the log |
 | `play usb\|aux\|wifi\|ipod\|airplay\|spotify\|snapcast\|standby`, `standby`, `volume [STEP] [--bass N]`, `key onoff\|hold\|standby\|volup\|voldn\|play\|next\|prev` | the source manager, as the keys and the remote drive it (USB and AUX only while plugged in, a receiver with a sender connected; `ipod` refused: no dock support) |
 | `amp allow\|auto\|deny` | the amp interlock: allowed until the MCU restarts / allowed from every boot (the default: the amp comes on by itself when there is sound) / locked, at boot too (EEPROM flag `SETTINGS_AMP_LOCKED`, until `amp auto`) |
-| `prefs [--auto-switch on\|off] [--amp-idle MIN] [--volume-cap N]` | a USB stream taking the speaker by itself; how long a silent source keeps the amp on (1 to 30 min); the highest volume on every source (1 to 71, 40 unless set); all in the EEPROM |
+| `prefs [--auto-switch on\|off] [--amp-idle MIN] [--volume-cap N]` | a USB stream taking the speaker by itself; how long a silent source keeps the amp on (1 to 30 min); the highest volume on every source (1 to 71, 71 unless set); all in the EEPROM |
 | `gate [unlock\|lock\|open]` | the host link's gate |
 | `module off\|start\|power\|restart\|bl2\|hold\|esc [-t S]` | the network module: `start` = the non-blocking bring-up done at every boot (off again after 180 s without READY; a system slot not ready in 90 s is power-cycled onto the next choice); `power` waits ≤ S (120); `bl2` HCR 0x21 into BL2; `hold` power-cycled, the reset released, nothing watching (JTAG); `esc` into BL2 through BL1's serial menu, whatever the image (USART1: PA06 → the module's RXD1, PA05 ← TXD1) |
 | `console [run CMD...\|log]` | the module's console: a terminal (Ctrl-] leaves), shell commands to their end (output and exit status), or what it says |
@@ -244,7 +244,7 @@ that must be told apart (19.7; `mcu/tools/led_palette.py` with the measured mode
   DSP, so 16 bits carry the source at full scale); it goes over the network instead (`docs/streaming.md`, Formats). Host volume −60..+10 dB spans the steps 1..the volume cap, whole dB both ways (`src/hostvol.h`: the whole of the
   computer's slider does something, as the module's senders' 0..100 %); one
   limit holds on every source, whatever sets the volume (the keys, the remote, the host link, the computer, the
-  module's senders): the volume cap (`zd1 prefs --volume-cap N`, 1 to 71, 40 unless set, kept in the EEPROM's second
+  module's senders): the volume cap (`zd1 prefs --volume-cap N`, 1 to 71, 71 unless set, kept in the EEPROM's second
   page; a lower cap takes the volume down at once, and the module maps its senders' 0..100 % onto 0..the cap). The
   heat cap (step 50 while hot, `protect.c`) holds it lower on top.
 - **Audio engine**: iso packets → 1024-frame ring → PDCA ch0 blocks of 64 frames → SSC as stock (`ssc_i2s_init(.., 16,

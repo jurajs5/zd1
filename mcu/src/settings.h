@@ -30,7 +30,9 @@ typedef struct {
 #define SETTINGS_AMP_IDLE_MIN     1
 #define SETTINGS_AMP_IDLE_MAX     30 /* the amp runs hot: never longer */
 
-#define SETTINGS_VOL_CAP_DEFAULT 40 /* the safety cap kept since the first firmware */
+/* Stock's range: the loudest step (+10 dB). Up to 0.1 it was 40 (-21 dB), which made the module and USB 16..31 dB
+ * quieter than the original firmware. */
+#define SETTINGS_VOL_CAP_DEFAULT 71
 
 #define SETTINGS_SAVE_DELAY_MS 3000
 #define SETTINGS_DEFAULT_VOL   30 /* DSP index 41 = -31 dB */

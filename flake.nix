@@ -25,7 +25,7 @@
         "x86_64-linux"
       ];
       # what the builds identify themselves as: the commit (-dirty with uncommitted changes) and its date, UTC
-      version = self.shortRev or self.dirtyShortRev or "dev";
+      version = "0.2-" + (self.shortRev or self.dirtyShortRev or "dev");
       built =
         let
           d = self.lastModifiedDate or "19700101000000";

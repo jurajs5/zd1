@@ -78,7 +78,7 @@ and what is known. What already works: `status.md`; checks that need a person at
   it once the other source is silent.
 - **Stable USB identity**: macOS asks "Allow accessory to connect?" when the descriptors change; keep them as they are
   between builds (the serial number is fixed, "ZD1").
-- **The volume cap** (step 40 of 71, `mcu/src/usbaudio.c`, for USB and the module) stays until it is removed on
+- **The volume cap** (default 71 of 71 from 0.2, was 40; `mcu/src/usbaudio.c`, for USB and the module) was removed on
   purpose.
 - **The host link**: events as typed messages (source and module changes, keys) instead of only log text; a WinUSB
   descriptor for Windows.

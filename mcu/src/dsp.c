@@ -73,8 +73,9 @@ int dsp_set_bass(unsigned preset) {
 }
 
 /* Input routing (FUN_800202bc). Param 0x14 = input selector; E080/E002 = serial port routing for USB vs module.
- * Stock also applies source-specific gain records (0x147.., 0x18E/0x18F) and, for AUX, codec reg 0x0E; those
- * follow in the source manager. 20 ms settle like stock. */
+ * Stock writes per-driver trims (0x83, 0x147.., 0x18E/0x18F) only in factory modes (the production tool's commands,
+ * DSP feedthrough, IR test), never in normal playback, and our param image already has stock's defaults: nothing to
+ * add. For AUX, codec reg 0x0E is done in the source manager. 20 ms settle like stock. */
 int dsp_set_input(dsp_input_t in) {
     static const uint8_t sel[] = {[DSP_IN_USB] = 0, [DSP_IN_MODULE] = 0, [DSP_IN_AUX] = 2, [DSP_IN_OPTICAL] = 1};
     int rc;

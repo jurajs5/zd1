@@ -5,7 +5,7 @@
 name: zd1l-show
 on:
   push:
-    branches: [zd1l-show]
+    branches: [zd1l-show, release-0.2]
   workflow_dispatch:
 jobs:
   fw:
