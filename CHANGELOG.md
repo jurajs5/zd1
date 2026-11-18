@@ -32,8 +32,9 @@ switching misbehaved afterwards, so it was dropped and is not part of 0.1.)
   (`mcu/src/settings.h`). Up to 0.1 the loudest step was 40 (DSP -21 dB); the original B&W
   firmware allows 71 (+10 dB). So AirPlay at 100 % was 31 dB quieter than stock, and 16-30 dB at
   50-70 %. Applies to the module (AirPlay, Spotify) and USB. The heat protection still lowers it
-  to step 50 while the amp is hot. A cap already stored in the EEPROM (`zd1 prefs --volume-cap`)
-  overrides the default.
+  to step 50 while the amp is hot. **A cap already stored in the EEPROM overrides the default**
+  (`zd1 prefs --volume-cap`): on the first unit it was still 40 after flashing 0.2, so it had to be
+  set once with `zd1 prefs --volume-cap 71` (needs the ON/OFF unlock). Check `zd1 prefs`.
 - **Source-switch pop, stock's hold.** The mute hold after a switch goes 80 -> 500 ms
   (`SWITCH_SETTLE_MS`), as in the stock firmware (reverse-engineered: `FUN_8001332c`,
   `FUN_80013a68`). Not done yet: stock also waits for the new input to report locked before
@@ -45,3 +46,14 @@ Not in 0.2: the on-speaker web interface (`zd1-webd`, commit `b550ec0` on `zd1l-
 reverted from the speaker pending fixes (a real idle state, live polling, real Wi-Fi list / add /
 forget, DHCP vs static, Ethernet and Wi-Fi IPs with icons, working restart / factory reset);
 planned for 0.3.
+
+### Found while testing 0.2 (not fixed yet; planned for 0.3)
+
+- **AirPlay silent after a failed Spotify start.** If Spotify Connect takes the speaker and then fails
+  (here: `Spotify refused its audio key`), `zd1-linkd` keeps Spotify as the owner and `zd1-audio` keeps
+  AirPlay in `yielded`, so AirPlay receives and drops its packets and never reports `playing`; the MCU
+  only sees `paused`. Restarting the `airplay` service clears it. Fix: release the owner when the
+  session ends or the player never starts, and clear `yielded` when the owner goes.
+- **Spotify Connect does not play** on this unit now: `audio key refused` (server side, cause unknown).
+- **Wi-Fi loop in `wifi.log`** with no network saved: wpa_supplicant keeps associating to the last AP and
+  disconnecting. Harmless so far.
